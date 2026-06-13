@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ROS 2 Robot Control</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg-base:        #080c10;
+      --bg-panel:       #0d1318;
+      --bg-card:        #111820;
+      --bg-input:       #0a1016;
+      --accent-cyan:    #00e5ff;
+      --accent-green:   #39ff7a;
+      --accent-red:     #ff2244;
+      --accent-amber:   #ffb300;
+      --border-dim:     rgba(0, 229, 255, 0.12);
+      --border-bright:  rgba(0, 229, 255, 0.45);
+      --text-primary:   #e0f4ff;
+      --text-muted:     rgba(180, 210, 230, 0.5);
+      --text-label:     rgba(0, 229, 255, 0.6);
+      --font-hud:       'Orbitron', monospace;
+      --font-mono:      'Share Tech Mono', monospace;
+      --radius-sm:      4px;
+      --radius-md:      8px;
+      --radius-lg:      12px;
+      --shadow-glow:    0 0 18px rgba(0, 229, 255, 0.2);
+      --shadow-red:     0 0 24px rgba(255, 34, 68, 0.5);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      overflow: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .dashboard {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 12px 16px;
+      gap: 10px;
+    }
+
+    /* --- Header --- */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-bright);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .brand {
+      font-family: var(--font-hud);
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-dot {
+      width: 10px; height: 10px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .brand-accent { color: var(--accent-cyan); }
+
+    .status-bar { display: flex; gap: 20px; font-size: 0.72rem; letter-spacing: 0.1em; }
+    .status-item { color: var(--text-muted); }
+    #status-conn { color: var(--accent-green); }
+
+    /* --- Main Grid --- */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* --- Camera Panel --- */
+    .camera-panel { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+
+    .panel-label, .zone-label {
+      font-family: var(--font-hud);
+      font-size: 0.62rem;
+      letter-spacing: 0.22em;
+      color: var(--text-label);
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border-dim);
+    }
+
+    .camera-box {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border-bright);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      position: relative;
+      box-shadow: var(--shadow-glow);
+    }
+
+    .camera-box::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom, transparent, transparent 3px,
+        rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px
+      );
+      pointer-events: none;
+    }
+
+    .camera-inner {
+      position: relative;
+      width: 100%; height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at center, #0d1e28 0%, #060a0d 100%);
+    }
+
+    .cam-crosshair { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .ch-h, .ch-v { position: absolute; background: rgba(0,229,255,0.08); }
+    .ch-h { width: 60%; height: 1px; }
+    .ch-v { width: 1px; height: 60%; }
+
+    .cam-corners { position: absolute; inset: 16px; pointer-events: none; }
+    .corner { position: absolute; width: 22px; height: 22px; border-color: var(--accent-cyan); border-style: solid; opacity: 0.6; }
+    .corner.tl { top: 0; left: 0;   border-width: 2px 0 0 2px; }
+    .corner.tr { top: 0; right: 0;  border-width: 2px 2px 0 0; }
+    .corner.bl { bottom: 0; left: 0;  border-width: 0 0 2px 2px; }
+    .corner.br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+    .cam-overlay-info {
+      position: absolute; top: 14px; left: 18px;
+      display: flex; gap: 16px;
+      font-size: 0.68rem; letter-spacing: 0.12em;
+      color: rgba(0,229,255,0.5); z-index: 2;
+    }
+    .cam-overlay-info span:first-child { color: var(--accent-red); animation: blink 1.5s step-start infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* --- Telemetry --- */
+    .telemetry-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .telem-item { background: var(--bg-panel); border: 1px solid var(--border-dim); border-radius: var(--radius-sm); padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+    .telem-label { font-size: 0.58rem; letter-spacing: 0.15em; color: var(--text-label); }
+    .telem-value { font-family: var(--font-hud); font-size: 0.82rem; color: var(--accent-cyan); }
+
+    /* --- Control Panel --- */
+    .control-panel { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+
+    /* --- Base Button --- */
+    .btn {
+      font-family: var(--font-hud);
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      border: none;
+      cursor: pointer;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: var(--radius-md);
+      transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease, filter 0.12s ease;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0.08); opacity: 0; transition: opacity 0.1s; }
+    .btn:active::after { opacity: 1; }
+    .btn:active { transform: scale(0.96); }
+
+    /* --- STOP --- */
+    .stop-zone { flex-shrink: 0; }
+    .btn-stop {
+      width: 100%; padding: 18px 0; font-size: 1.3rem; letter-spacing: 0.22em;
+      background: var(--accent-red); color: #fff;
+      box-shadow: var(--shadow-red); border: 2px solid rgba(255,255,255,0.15);
+    }
+    .btn-stop:hover { background: #ff4466; box-shadow: 0 0 36px rgba(255,34,68,0.75); filter: brightness(1.1); }
+    .btn-stop:active { transform: scale(0.97); }
+
+    /* --- Mode Buttons --- */
+    .mode-zone { flex-shrink: 0; }
+    .mode-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+
+    .btn-manual {
+      padding: 18px 0; font-size: 0.85rem;
+      background: var(--bg-card); color: var(--accent-amber);
+      border: 1px solid var(--accent-amber); box-shadow: 0 0 12px rgba(255,179,0,0.2);
+    }
+    .btn-manual:hover { background: rgba(255,179,0,0.12); box-shadow: 0 0 22px rgba(255,179,0,0.4); }
+    .btn-manual.active { background: rgba(255,179,0,0.2); box-shadow: 0 0 24px rgba(255,179,0,0.5); }
+
+    .btn-auto {
+      padding: 18px 0; font-size: 0.85rem;
+      background: var(--bg-card); color: var(--accent-green);
+      border: 1px solid var(--accent-green); box-shadow: 0 0 12px rgba(57,255,122,0.2);
+    }
+    .btn-auto:hover { background: rgba(57,255,122,0.1); box-shadow: 0 0 22px rgba(57,255,122,0.4); }
+    .btn-auto.active { background: rgba(57,255,122,0.18); box-shadow: 0 0 24px rgba(57,255,122,0.5); }
+
+    /* --- D-Pad --- */
+    .direction-zone { flex-shrink: 0; }
+    .dpad { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .dpad-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+
+    .btn-dir {
+      aspect-ratio: 1; flex-direction: column; gap: 4px; font-size: 0.6rem;
+      background: var(--bg-card); color: var(--accent-cyan);
+      border: 1px solid var(--border-bright); box-shadow: var(--shadow-glow);
+    }
+    .btn-dir:hover { background: rgba(0,229,255,0.1); box-shadow: 0 0 20px rgba(0,229,255,0.4); border-color: var(--accent-cyan); }
+    .btn-dir:active { background: rgba(0,229,255,0.2); box-shadow: 0 0 28px rgba(0,229,255,0.6); }
+
+    .arrow { font-size: 1.4rem; line-height: 1; }
+    .dir-label { letter-spacing: 0.1em; }
+    .btn-icon { font-size: 1rem; opacity: 0.8; }
+
+    .dpad-center {
+      background: var(--bg-card); border: 1px solid var(--border-dim);
+      border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;
+    }
+    .dpad-dot { width: 8px; height: 8px; background: var(--accent-cyan); border-radius: 50%; opacity: 0.4; }
+
+    .btn-diag {
+      color: var(--accent-amber);
+      border-color: rgba(255, 179, 0, 0.5);
+      box-shadow: 0 0 12px rgba(255, 179, 0, 0.2);
+    }
+    .btn-diag:hover {
+      background: rgba(255, 179, 0, 0.1);
+      box-shadow: 0 0 22px rgba(255, 179, 0, 0.45);
+    }
+    
+    .btn-rotate-dir {
+      color: var(--accent-green);
+      border-color: rgba(57, 255, 122, 0.4);
+      box-shadow: 0 0 12px rgba(57, 255, 122, 0.15);
+    }
+    .btn-rotate-dir:hover {
+      background: rgba(57, 255, 122, 0.1);
+      box-shadow: 0 0 22px rgba(57, 255, 122, 0.4);
+    }
+
+    /* --- Detection Bar --- */
+    .detection-zone { flex-shrink: 0; }
+
+    .detection-bar {
+      background: var(--bg-input);
+      border: 1px solid var(--border-dim);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .det-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .det-status {
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      color: var(--text-muted);
+      transition: color 0.3s;
+    }
+    .det-status.live    { color: var(--accent-green); }
+    .det-status.offline { color: var(--accent-red); }
+
+    .det-count {
+      font-family: var(--font-hud);
+      font-size: 0.68rem;
+      color: var(--accent-cyan);
+    }
+
+    .det-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      min-height: 30px;
+      align-items: center;
+    }
+
+    .det-empty {
+      font-size: 0.67rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      opacity: 0.6;
+    }
+
+    /* Each detected object pill */
+    .det-tag {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      background: rgba(0, 229, 255, 0.06);
+      border: 1px solid var(--border-bright);
+      border-radius: var(--radius-sm);
+      padding: 4px 9px;
+      animation: detFadeIn 0.18s ease;
+    }
+    .det-tag.high { border-color: var(--accent-green); background: rgba(57, 255, 122, 0.07); }
+    .det-tag.low  { border-color: var(--accent-amber); background: rgba(255, 179, 0, 0.07); }
+
+    .det-tag-row { display: flex; align-items: center; gap: 7px; }
+    .det-label   { font-size: 0.68rem; letter-spacing: 0.1em; color: var(--text-primary); }
+    .det-conf    { font-size: 0.6rem;  letter-spacing: 0.08em; color: var(--text-label); }
+    .det-tag.high .det-conf { color: var(--accent-green); }
+    .det-tag.low  .det-conf { color: var(--accent-amber); }
+
+    /* Mini confidence bar inside each pill */
+    .det-pill-bar {
+      height: 2px;
+      background: var(--border-dim);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .det-pill-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.35s ease;
+    }
+    .det-tag.high .det-pill-fill { background: var(--accent-green); }
+    .det-tag.low  .det-pill-fill { background: var(--accent-amber); }
+
+    @keyframes detFadeIn {
+      from { opacity: 0; transform: scale(0.88); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    /* --- Log --- */
+    .log-zone { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .log-box {
+      flex: 1; background: var(--bg-input); border: 1px solid var(--border-dim);
+      border-radius: var(--radius-sm); padding: 8px 10px; overflow-y: auto; margin-top: 6px;
+      font-size: 0.7rem; letter-spacing: 0.06em; line-height: 1.6;
+    }
+    .log-box::-webkit-scrollbar { width: 4px; }
+    .log-box::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 2px; }
+    .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .log-system { color: var(--text-muted); }
+    .log-stop   { color: var(--accent-red); }
+    .log-manual { color: var(--accent-amber); }
+    .log-auto   { color: var(--accent-green); }
+    .log-dir    { color: var(--accent-cyan); }
+
+    /* --- Responsive --- */
+    @media (max-width: 900px) {
+      html, body { overflow: auto; }
+      .dashboard { height: auto; min-height: 100vh; }
+      .main-grid { grid-template-columns: 1fr; }
+      .camera-box { height: 260px; flex: none; }
+      .telemetry-strip { grid-template-columns: repeat(2, 1fr); }
+      .dpad-row { gap: 10px; }
+      .btn-dir { min-height: 72px; }
+      .mode-buttons { gap: 10px; }
+      .btn-manual, .btn-auto, .btn-stop { padding: 20px 0; }
+    }
+
+    @media (max-width: 520px) {
+      .brand { font-size: 0.85rem; }
+      .status-bar { gap: 10px; font-size: 0.62rem; }
+      .camera-text { font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="dashboard">
+
+    <header class="header">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        RETRIBOT<span class="brand-accent">'s</span> CONTROL
+      </div>
+      <div class="status-bar">
+        <span class="status-item" id="status-mode">MODE: IDLE</span>
+        <span class="status-item" id="status-conn">● CONNECTED</span>
+        <span class="status-item" id="status-time"></span>
+      </div>
+    </header>
+
+    <main class="main-grid">
+
+      <!-- LEFT: Camera -->
+      <section class="camera-panel">
+        <div class="panel-label">CAMERA FEED</div>
+        <div class="camera-box">
+          <div class="camera-inner">
+            <div id="camera-container" style="position: relative; width: 100%; height: 100%;">
+              <img id="camera-stream"
+                src="/video_feed"
+                style="width:100%; height:100%; object-fit:contain; border-radius:inherit;" />
+              <canvas id="detection-canvas"
+                style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></canvas>
+            </div>
+            <div class="cam-corners">
+              <span class="corner tl"></span><span class="corner tr"></span>
+              <span class="corner bl"></span><span class="corner br"></span>
+            </div>
+            <div class="cam-overlay-info">
+              <span>REC ●</span><span>1080p</span><span>30 FPS</span>
+            </div>
+          </div>
+        </div>
+        <div class="telemetry-strip">
+          <div class="telem-item"><span class="telem-label">SPEED</span><span class="telem-value">0.0 m/s</span></div>
+          <div class="telem-item"><span class="telem-label">BATTERY</span><span class="telem-value">87%</span></div>
+          <div class="telem-item"><span class="telem-label">HEADING</span><span class="telem-value">000°</span></div>
+          <div class="telem-item"><span class="telem-label">UPTIME</span><span class="telem-value" id="t-uptime">00:00:00</span></div>
+        </div>
+      </section>
+
+      <!-- RIGHT: Controls -->
+      <section class="control-panel">
+
+        <div class="stop-zone">
+          <button class="btn btn-stop" id="btn-stop">
+            <span class="btn-icon">■</span> STOP
+          </button>
+        </div>
+
+        <div class="mode-zone">
+          <div class="zone-label">OPERATION MODE</div>
+          <div class="mode-buttons">
+            <button class="btn btn-manual" id="btn-manual">
+              <span class="btn-icon">◈</span> MANUAL
+            </button>
+            <button class="btn btn-auto" id="btn-auto">
+              <span class="btn-icon">◎</span> AUTO / ITEM
+            </button>
+          </div>
+        </div>
+
+
+        <div class="direction-zone">
+          <div class="zone-label">DIRECTIONAL CONTROL</div>
+          <div class="dpad">
+            <!-- Row 1: diag-fwd-left | forward | diag-fwd-right -->
+            <div class="dpad-row">
+              <button class="btn btn-dir btn-diag" id="btn-fwd-left" aria-label="Forward Left">
+                <span class="arrow">↖</span><span class="dir-label">FWD-L</span>
+              </button>
+              <button class="btn btn-dir" id="btn-up" aria-label="Forward">
+                <span class="arrow">▲</span><span class="dir-label">FWD</span>
+              </button>
+              <button class="btn btn-dir btn-diag" id="btn-fwd-right" aria-label="Forward Right">
+                <span class="arrow">↗</span><span class="dir-label">FWD-R</span>
+              </button>
+            </div>
+            <!-- Row 2: left | stop-center | right -->
+            <div class="dpad-row">
+              <button class="btn btn-dir" id="btn-left" aria-label="Left">
+                <span class="arrow">◀</span><span class="dir-label">LEFT</span>
+              </button>
+              <div class="dpad-center dpad-center-cell"><div class="dpad-dot"></div></div>
+              <button class="btn btn-dir" id="btn-right" aria-label="Right">
+                <span class="arrow">▶</span><span class="dir-label">RIGHT</span>
+              </button>
+            </div>
+            <!-- Row 3: diag-bwd-left | backward | diag-bwd-right -->
+            <div class="dpad-row">
+              <button class="btn btn-dir btn-diag" id="btn-bwd-left" aria-label="Backward Left">
+                <span class="arrow">↙</span><span class="dir-label">BWD-L</span>
+              </button>
+              <button class="btn btn-dir" id="btn-down" aria-label="Backward">
+                <span class="arrow">▼</span><span class="dir-label">BWD</span>
+              </button>
+              <button class="btn btn-dir btn-diag" id="btn-bwd-right" aria-label="Backward Right">
+                <span class="arrow">↘</span><span class="dir-label">BWD-R</span>
+              </button>
+            </div>
+            <!-- Row 4: rotate CCW | rotate CW -->
+            <div class="dpad-row" style="grid-template-columns: 1fr 1fr; gap: 6px;">
+              <button class="btn btn-dir btn-rotate-dir" id="btn-rotate-left" aria-label="Rotate CCW" style="grid-column: span 1; aspect-ratio: auto; padding: 12px 0;">
+                <span class="arrow">↺</span><span class="dir-label">ROTATE CCW</span>
+              </button>
+              <button class="btn btn-dir btn-rotate-dir" id="btn-rotate-right" aria-label="Rotate CW" style="grid-column: span 1; aspect-ratio: auto; padding: 12px 0;">
+                <span class="arrow">↻</span><span class="dir-label">ROTATE CW</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── DETECTION BAR ── -->
+        <div class="detection-zone">
+          <div class="zone-label">OBJECT DETECTION</div>
+          <div class="detection-bar">
+            <div class="det-header">
+              <span class="det-status" id="det-status">● SCANNING</span>
+              <span class="det-count"  id="det-count">0 OBJECTS</span>
+            </div>
+            <div class="det-items" id="det-items">
+              <span class="det-empty">— no objects detected —</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="log-zone">
+          <div class="zone-label">COMMAND LOG</div>
+          <div class="log-box" id="log-box">
+            <div class="log-entry log-system">— System ready —</div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <script>
+    /* ============================================================
+       ROS 2 Robot Control Dashboard — JavaScript
+       ============================================================ */
+
+    function sendCommand(cmd) {
+      console.log(`[ROS2] Command: "${cmd}"`);
+      fetch('/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmd })
+      })
+      .then(r => r.json())
+      .then(data => console.log('[ROS2] Response:', data))
+      .catch(err => {
+        console.error('[ROS2] Command error:', err);
+        addLogEntry('system: Command failed');
+      });
+      addLogEntry(cmd);
+      updateStatusMode(cmd);
+    }
+
+    /* --- On-Screen Log --- */
+    const logBox = document.getElementById('log-box');
+
+    function addLogEntry(cmd) {
+      const classMap = { stop:'log-stop', manual:'log-manual', auto:'log-auto', forward:'log-dir', backward:'log-dir', left:'log-dir', right:'log-dir', forward_left:'log-dir', forward_right:'log-dir', backward_left:'log-dir', backward_right:'log-dir', rotate_left:'log-dir', rotate_right:'log-dir', };
+      const labelMap = { stop:'■ STOP', manual:'◈ MANUAL', auto:'◎ AUTO / ITEM', forward:'▲ FORWARD', backward:'▼ BACKWARD', left:'◀ LEFT', right:'▶ RIGHT',forward_left:'↖ FWD-LEFT', forward_right:'↗ FWD-RIGHT', backward_left:'↙ BWD-LEFT', backward_right:'↘ BWD-RIGHT', rotate_left:'↺ ROTATE CCW', rotate_right:'↻ ROTATE CW', };
+      const ts    = new Date().toTimeString().slice(0, 8);
+      const entry = document.createElement('div');
+      entry.classList.add('log-entry', classMap[cmd] || 'log-system');
+      entry.textContent = `[${ts}] ${labelMap[cmd] || cmd.toUpperCase()}`;
+      logBox.appendChild(entry);
+      logBox.scrollTop = logBox.scrollHeight;
+      while (logBox.children.length > 50) logBox.removeChild(logBox.firstChild);
+    }
+
+    /* --- Status Bar --- */
+    const statusMode = document.getElementById('status-mode');
+
+    function updateStatusMode(cmd) {
+      const labels = { stop:'MODE: STOPPED', manual:'MODE: MANUAL', auto:'MODE: AUTO', forward:'MODE: MOVING ▲', backward:'MODE: MOVING ▼', left:'MODE: TURNING ◀', right:'MODE: TURNING ▶', forward_left:'MODE: MOVING ↖', forward_right:'MODE: MOVING ↗', backward_left:'MODE: MOVING ↙', backward_right:'MODE: MOVING ↘', rotate_left:'MODE: ROTATING ↺', rotate_right:'MODE: ROTATING ↻', };
+      statusMode.textContent = labels[cmd] || 'MODE: IDLE';
+    }
+
+    /* --- Button Wiring --- */
+    const buttonCommandMap = {
+        'btn-stop':'stop',
+        'btn-manual':'manual',
+        'btn-auto':'auto',
+        'btn-up':'forward',
+        'btn-down':'backward',
+        'btn-left':'left',
+        'btn-right':'right',
+        'btn-fwd-left':'forward_left',
+        'btn-fwd-right':'forward_right',
+        'btn-bwd-left':'backward_left',
+        'btn-bwd-right':'backward_right',
+        'btn-rotate-left':'rotate_left',
+        'btn-rotate-right':'rotate_right',
+    };
+    
+    const modeButtons = ['btn-manual', 'btn-auto'];
+    let currentMode = 'idle';
+    let holdInterval = null;
+    let activeHoldCmd = null;
+
+    function startHoldCommand(cmd) {
+        if (currentMode !== 'manual') return;
+
+        if (holdInterval) clearInterval(holdInterval);
+
+        activeHoldCmd = cmd;
+        sendCommand(cmd);
+
+        holdInterval = setInterval(() => {
+            sendCommand(cmd);
+        }, 200);
+    }
+
+    function stopHoldCommand() {
+        if (currentMode !== 'manual') return;
+        if (!activeHoldCmd) return;
+
+        clearInterval(holdInterval);
+        holdInterval = null;
+        activeHoldCmd = null;
+
+        sendCommand('stop');
+    }
+
+    Object.entries(buttonCommandMap).forEach(([id, cmd]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        if (id === 'btn-manual' || id === 'btn-auto') {
+            el.addEventListener('click', () => {
+            modeButtons.forEach(mid => document.getElementById(mid)?.classList.remove('active'));
+            el.classList.add('active');
+
+            currentMode = cmd;
+            sendCommand(cmd);
+            });
+            return;
+        }
+
+        if (id === 'btn-stop') {
+            el.addEventListener('click', () => {
+            stopHoldCommand();
+            sendCommand('stop');
+            });
+            return;
+        }
+
+        el.addEventListener('mousedown', () => startHoldCommand(cmd));
+        el.addEventListener('mouseup', stopHoldCommand);
+        el.addEventListener('mouseleave', stopHoldCommand);
+        el.addEventListener('touchstart', e => {
+            e.preventDefault();
+            startHoldCommand(cmd);
+        });
+
+        el.addEventListener('touchend', e => {
+            e.preventDefault();
+            stopHoldCommand();
+        });
+
+        el.addEventListener('click', () => {
+            if (currentMode !== 'manual') {
+            sendCommand(cmd);
+            }
+        });
+    });
+
+    /* --- Keyboard Shortcuts --- */
+    const keyMap = { ArrowUp:'btn-up', ArrowDown:'btn-down', ArrowLeft:'btn-left', ArrowRight:'btn-right', ' ':'btn-stop' };
+    document.addEventListener('keydown', e => {
+      const btnId = keyMap[e.key];
+      if (!btnId) return;
+      e.preventDefault();
+      document.getElementById(btnId)?.click();
+    });
+
+    /* --- Clock --- */
+    const statusTime = document.getElementById('status-time');
+    function updateClock() { statusTime.textContent = new Date().toTimeString().slice(0, 8); }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    /* --- Uptime Counter --- */
+    const uptimeEl = document.getElementById('t-uptime');
+    let uptimeSec  = 0;
+    setInterval(() => {
+      uptimeSec++;
+      uptimeEl.textContent = [Math.floor(uptimeSec / 3600), Math.floor((uptimeSec % 3600) / 60), uptimeSec % 60]
+        .map(n => String(n).padStart(2, '0')).join(':');
+    }, 1000);
+
+    
+    const detStatusEl = document.getElementById('det-status');
+    const detCountEl  = document.getElementById('det-count');
+    const detItemsEl  = document.getElementById('det-items');
+
+    const detectedObjects = {};
+    const CONF_UPDATE_INTERVAL = 2000;
+    const REMOVE_AFTER_MS = 3000;
+
+    function formatLabel(className) {
+      return className.replaceAll('_', ' ');
+    }
+
+
+    function renderDetections() {
+      const items = Object.values(detectedObjects);
+
+
+      detItemsEl.innerHTML = '';
+
+      if (!items || items.length === 0) {
+        detItemsEl.innerHTML = '<span class="det-empty">— no objects detected —</span>';
+        detCountEl.textContent   = '0 OBJECTS';
+        detStatusEl.textContent  = '● SCANNING';
+        detStatusEl.className    = 'det-status';
+        return;
+      }
+
+      detCountEl.textContent  = items.length + ' TYPES' + (items.length !== 1 ? 'S' : '');
+      detStatusEl.textContent = '● LIVE';
+      detStatusEl.className   = 'det-status live';
+
+      items.forEach(item => {
+        const pct  = Math.round(item.confidence * 100);
+        const tier = item.confidence >= 0.75 ? 'high' : 'low';
+
+        const tag = document.createElement('div');
+        tag.className = 'det-tag ' + tier;
+        tag.innerHTML =
+          '<div class="det-tag-row">' +
+            '<span class="det-label">' + item.class_name + '</span>' +
+            '<span class="det-conf">'  + pct + '%</span>' +
+          '</div>' +
+          '<div class="det-pill-bar">' +
+            '<div class="det-pill-fill" style="width:' + pct + '%"></div>' +
+          '</div>';
+
+        detItemsEl.appendChild(tag);
+      });
+    }
+
+    function updateDetection(data) {
+      if (!data || !data.class_name || data.class_name === 'none') {
+        renderDetections();
+        return;
+      }
+      const now = Date.now();
+      const className = data.class_name;
+      const confidence = Number(data.confidence) || 0;
+
+      if (!detectedObjects[className]) {
+        detectedObjects[className] = {
+          class_name: className,
+          confidence: confidence,
+          last_update: now,
+          last_seen: now
+        };
+        renderDetections();
+        return;
+      }
+      detectedObjects[className].last_seen = now;
+
+      if (now - detectedObjects[className].last_update >= CONF_UPDATE_INTERVAL) {
+        detectedObjects[className].confidence = confidence;
+        detectedObjects[className].last_update = now;
+        renderDetections();
+      }
+
+
+    }
+
+    function fetchDetections() {
+      fetch('/detections')
+        .then(r => {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(data => updateDetection(data))
+        .catch(() => {
+          detStatusEl.textContent = '● OFFLINE';
+          detStatusEl.className   = 'det-status offline';
+          detCountEl.textContent  = '—';
+          detItemsEl.innerHTML    = '<span class="det-empty">— connection lost —</span>';
+        });
+    }
+
+    function removeStaleDetections() {
+      const now = Date.now();
+
+      Object.keys(detectedObjects).forEach(className => {
+        if (now - detectedObjects[className].last_seen >= REMOVE_AFTER_MS) {
+          delete detectedObjects[className];
+        }
+      });
+
+      renderDetections();
+    }
+
+    fetchDetections();
+    setInterval(fetchDetections, 500);
+    setInterval(removeStaleDetections, 500);
+
+    console.log('[ROS2] Dashboard ready. Arrow keys = directions, Space = STOP');
+  </script>
+
+</body>
+</html>

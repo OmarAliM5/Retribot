@@ -1,0 +1,6 @@
+nodes:
+  imu: "ros2 run imu_pkg imu_node"
+  imu_filter: "ros2 run imu_pkg ekf_node"
+  position_pid: "ros2 run imu_pkg position_pid"
+  mecanum: "ros2 run mecanum_controller_pkg mecanum_controller_node"
+  #micro_ros_serial: "ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -v6"

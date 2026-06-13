@@ -60,10 +60,7 @@ class MotionSequence(Node):
 
     def obs_avoidance_callback(self, msg):
         self.obstacle_avoidance = msg.data
-        if self.obstacle_avoidance:
-            self.save_state = self.state
-        else:
-            self.state = self.save_state
+        self.state = self.save_state
 
     def start_stop_callback(self, msg):
         try:
@@ -137,29 +134,34 @@ class MotionSequence(Node):
             self.publish_target(target)
             self.save_state = 0
             self.state = 1
+            self.get_logger().info("State 0 complete.")
 
         elif self.state == 1 and self.goal_reached:
             target = self.get_absolute_target(rel_targets[1])
             self.publish_target(target)
             self.save_state = 1
             self.state = 2
+            self.get_logger().info("State 1 complete.")
 
         elif self.state == 2 and self.goal_reached:
             target = self.get_absolute_target(rel_targets[2])
             self.publish_target(target)
             self.save_state = 2
             self.state = 3
+            self.get_logger().info("State 2 complete.")
 
         elif self.state == 3 and self.goal_reached:
             target = self.get_absolute_target(rel_targets[3])
             self.publish_target(target)
             self.save_state = 3
             self.state = 4
+            self.get_logger().info("State 3 complete.")
 
         elif self.state == 4 and self.goal_reached:
             self.get_logger().info("Path sequence complete!")
             self.save_state = 4
-            self.state = 5 
+            self.state = 5
+            self.get_logger().info("state 4 complete.")
 
         elif self.state == 99 and self.goal_reached:
             self.publish_target(Pose2D(x=self.save_x, y=self.save_y, theta=self.save_yaw))

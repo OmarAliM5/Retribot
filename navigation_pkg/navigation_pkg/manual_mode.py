@@ -53,7 +53,11 @@ class ManualMode(Node):
         if not self.manual_active:
             return
 
-        if command == 'forward':
+        if command == 'stop_manual':
+            self.publish_stop()
+            return
+
+        elif command == 'forward':
             twist.linear.x = self.linear_speed
 
         elif command == 'backward':

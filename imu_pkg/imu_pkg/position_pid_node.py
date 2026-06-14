@@ -6,7 +6,7 @@ from rclpy.node import Node
 
 from geometry_msgs.msg import Pose2D, Twist
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool,String
 
 
 class PositionPIDNode(Node):
@@ -74,7 +74,7 @@ class PositionPIDNode(Node):
             self.get_logger().info("Stop command received. Stopping robot and PID control.")
             self.stop_robot()
             self.has_target = False  # Clear any active target when stopping
-
+            self.is_reached = True  # Indicate that the goal is reached when stopping
 
     def normalize_angle(self, angle):
         while angle > math.pi:

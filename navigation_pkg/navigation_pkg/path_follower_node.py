@@ -77,7 +77,6 @@ class MotionSequence(Node):
             elif command == "manual":
                 self.get_logger().info("Manual mode activated. Stopping path following.")
                 self.start = False
-                self.goal_reached = True
                 self.save_x = self.pose.position.x
                 self.save_y = self.pose.position.y
                 self.save_yaw = self.yaw
@@ -163,14 +162,11 @@ class MotionSequence(Node):
             self.state = 5
             self.get_logger().info("state 4 complete.")
 
-        elif self.state == 99 and self.goal_reached:
+        elif self.state == 99 :
             self.publish_target(Pose2D(x=self.save_x, y=self.save_y, theta=self.save_yaw))
             self.get_logger().info("Resuming from manual mode.")
             self.state = self.save_state
             self.save_state = 99
-            self.save_x = 0.0
-            self.save_y = 0.0
-            self.save_yaw = 0.0
 
 def main():
     rclpy.init()

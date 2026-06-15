@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose2D
-from std_msgs.msg import Bool, String  # Added String import
+from std_msgs.msg import Bool, String
 import math
 import time
 
@@ -18,8 +18,6 @@ class MotionSequence(Node):
         self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
         self.obs_sub = self.create_subscription(Bool, '/obstacle_detected', self.obs_callback, 10)
         self.pid_status_sub = self.create_subscription(Bool, '/goal_reached', self.status_callback, 10)
-        
-        # ADDED: Subscription for GUI commands
         self.start_stop_sub = self.create_subscription(String, "/gui_command", self.start_stop_callback, 10)
 
         self.target_pub = self.create_publisher(Pose2D, '/target_pose', 10)
@@ -29,16 +27,12 @@ class MotionSequence(Node):
         self.yaw = 0.0
         self.obstacle_detected = False
         self.pid_goal_reached = True 
-
-        # ADDED: Start flag controlled by GUI
         self.start = False
-
         self.state = 0
 
         self.timer = self.create_timer(0.1, self.sequence_loop)
         self.wait_start = None
 
-    # ADDED: Callback to handle Start/Stop from GUI
     def start_stop_callback(self, msg):
         try:
             command = msg.data.lower()
@@ -48,7 +42,7 @@ class MotionSequence(Node):
             elif (command == "stop"):
                 self.get_logger().info("Stopping obstacle avoidance.")
                 self.start = False
-                self.state = 0  # Reset state machine so it doesn't resume mid-maneuver
+                self.state = 0  
         except Exception as e:
             self.get_logger().error(f"Error in start_stop_callback: {e}")
 
@@ -70,6 +64,7 @@ class MotionSequence(Node):
         self.target_pub.publish(target)
         self.pid_goal_reached = False 
         self.get_logger().info(f"Sent PID Target: X:{x:.2f}, Y:{y:.2f}, Yaw:{math.degrees(target.theta):.1f}°")
+
     def sequence_loop(self):
         if self.wait_start is None:
             self.wait_start = time.time()
@@ -77,12 +72,10 @@ class MotionSequence(Node):
         if self.pose is None:
             return
 
-        # If GUI hasn't started auto mode, broadcast False and do nothing
         if not self.start:
             self.obs_avoid_pub.publish(Bool(data=False))
             return
 
-        # Continuously broadcast our status
         is_avoiding = (self.state != 0)
         self.obs_avoid_pub.publish(Bool(data=is_avoiding))
 
@@ -90,7 +83,10 @@ class MotionSequence(Node):
         if self.state == 0 and self.obstacle_detected:
             self.state = 1
             self.wait_start = time.time()
-            self.get_logger().info("Obstacle detected! Starting avoidance sequence.")
+            self.get_logger().info("Obstacle detected! Halting robot.")
+            
+            # IMMEDIATELY halt the robot by feeding its current position to the PID controller
+            self.publish_target(self.pose.position.x, self.pose.position.y, self.yaw)
 
         elif self.state == 1:
             if (time.time() - self.wait_start >= 5.0) and self.obstacle_detected:
@@ -101,15 +97,14 @@ class MotionSequence(Node):
                 self.state = 0
                 
         # 2 -> Strafe Right 0.65m (Local Y = -0.65)
-        elif self.state == 2 and self.pid_goal_reached:
+        # REMOVED: `and self.pid_goal_reached` to prevent deadlocking against interrupted path targets
+        elif self.state == 2:
             current_x = self.pose.position.x
             current_y = self.pose.position.y
             
-            # Kinematics for shifting right relative to current heading
             target_x = current_x + (0.65 * math.sin(self.yaw))
             target_y = current_y - (0.65 * math.cos(self.yaw))
             
-            # Keep the same orientation
             self.publish_target(target_x, target_y, self.yaw)
             self.state = 3
 
@@ -118,11 +113,9 @@ class MotionSequence(Node):
             current_x = self.pose.position.x
             current_y = self.pose.position.y
             
-            # Kinematics for driving straight forward relative to current heading
             target_x = current_x + (0.65 * math.cos(self.yaw))
             target_y = current_y + (0.65 * math.sin(self.yaw))
             
-            # Keep the same orientation
             self.publish_target(target_x, target_y, self.yaw)
             self.state = 4
 
@@ -131,11 +124,9 @@ class MotionSequence(Node):
             current_x = self.pose.position.x
             current_y = self.pose.position.y
             
-            # Kinematics for shifting left relative to current heading
             target_x = current_x - (0.65 * math.sin(self.yaw))
             target_y = current_y + (0.65 * math.cos(self.yaw))
             
-            # Keep the same orientation
             self.publish_target(target_x, target_y, self.yaw)
             self.state = 5
 

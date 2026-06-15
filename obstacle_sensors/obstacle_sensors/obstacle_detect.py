@@ -35,7 +35,7 @@ class ObstacleDetectorNode(Node):
             self.get_logger().error(f'ToF I2C Bus Error: {e}')
 
         # --- 2. IR Sensor Setup ---
-        self.ir_pins = [4, 14, 15, 18]
+        self.ir_pins = [4, 14, 15, 23]
         self.ir_sensors = {}
         for pin in self.ir_pins:
             self.ir_sensors[pin] = DigitalInputDevice(pin, pull_up=False)

@@ -10,7 +10,7 @@ class MultiIRSensorNode(Node):
         super().__init__('multi_ir_node')
         
         # The list of GPIO pins your sensors are connected to
-        self.ir_pins = [4, 14, 15, 17]
+        self.ir_pins = [4, 14, 15, 23]
         
         self.sensors = {}
         self.publishers_ = {}

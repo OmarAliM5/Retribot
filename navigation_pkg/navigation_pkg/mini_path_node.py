@@ -57,13 +57,13 @@ class MotionSequence(Node):
             # Each full pass shifts the Y axis by -1.0m total (moving Right in ROS)
             y_offset = i * -1.0 
             
-            targets.append(Pose2D(x=2.0, y=y_offset, theta=0.0))                   # Go 2m in X
-            targets.append(Pose2D(x=2.0, y=y_offset, theta=-math.pi/2))            # Rotate -90 deg
-            targets.append(Pose2D(x=2.0, y=y_offset - 0.5, theta=-math.pi/2))      # Move 0.5m in -Y
-            targets.append(Pose2D(x=2.0, y=y_offset - 0.5, theta=-math.pi))        # Rotate -90 deg (to -180)
+            targets.append(Pose2D(x=1.5, y=y_offset, theta=0.0))                   # Go 2m in X
+            targets.append(Pose2D(x=1.5, y=y_offset, theta=-math.pi/2))            # Rotate -90 deg
+            targets.append(Pose2D(x=1.5, y=y_offset - 0.5, theta=-math.pi/2))      # Move 0.5m in -Y
+            targets.append(Pose2D(x=1.5, y=y_offset - 0.5, theta=-math.pi))        # Rotate -90 deg (to -180)
             targets.append(Pose2D(x=0.0, y=y_offset - 0.5, theta=-math.pi))        # Move 2m in -X
             
-            if i < 2:
+            if i < 0:
                 # Normal Sequence: Rotate 90, Move -Y, Rotate 90
                 targets.append(Pose2D(x=0.0, y=y_offset - 0.5, theta=-math.pi/2))  # Rotate 90 deg (to -90)
                 targets.append(Pose2D(x=0.0, y=y_offset - 1.0, theta=-math.pi/2))  # Move 0.5m in -Y

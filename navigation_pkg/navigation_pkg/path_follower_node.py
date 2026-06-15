@@ -95,13 +95,12 @@ class MotionSequence(Node):
             self.state = self.save_state
             
         self.obstacle_avoidance = msg.data
-
     def start_stop_callback(self, msg):
         try:
             command = msg.data.lower()
             if command == "auto":
-                # ADDED: Check if the sequence is already complete, reset if true
-                if self.state >= len(self.rel_targets):
+                # FIX: Ensure we do not reset the path if we are resuming from manual mode (State 99)
+                if self.state >= len(self.rel_targets) and self.state != 99:
                     self.get_logger().info("Previous path complete. Restarting sequence from the beginning.")
                     self.state = 0
                     self.save_state = 0
@@ -109,14 +108,18 @@ class MotionSequence(Node):
                 self.get_logger().info("Path following armed.")
                 self.start = True
                 self.goal_reached = True  
+                
             elif (command == "stop"):
                 self.get_logger().info("Stopping path following.")
                 self.state = self.save_state
                 self.start = False
                 self.goal_reached = True
+                
             elif command == "manual" and not(self.obstacle_avoidance or self.obstacle_detected):
                 self.get_logger().info("Manual mode activated. Stopping path following.")
                 self.start = False
+                
+                # Save exact coordinates to drive back to when Auto is pressed again
                 self.save_x = self.pose.position.x
                 self.save_y = self.pose.position.y
                 self.save_yaw = self.yaw

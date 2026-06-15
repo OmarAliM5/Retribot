@@ -6,7 +6,7 @@ from rclpy.node import Node
 
 from geometry_msgs.msg import Pose2D, Twist
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Bool,String
+from std_msgs.msg import Bool, String
 
 
 class PositionPIDNode(Node):
@@ -25,6 +25,9 @@ class PositionPIDNode(Node):
         # State tracking for the goal_reached topic
         self.target_ever_set = False 
         self.is_reached = False
+        
+        # Track obstacle avoidance state to prevent accidental manual overrides
+        self.is_avoiding = False
 
         self.kp_dist = 0.8
         self.kp_yaw = 0.4
@@ -57,14 +60,25 @@ class PositionPIDNode(Node):
 
         self.start_stop_sub = self.create_subscription(String, "/gui_command", self.start_stop_callback, 10)
         
+        # Subscription to know when an obstacle avoidance sequence is running
+        self.obs_avoid_sub = self.create_subscription(Bool, '/obstacle_avoidance', self.obs_avoid_callback, 10)
+        
         self.last_gui_command = None  # Track the last GUI command to avoid redundant processing
         self.timer = self.create_timer(0.05, self.control_loop)
 
         self.get_logger().info('Position PID Node Started')
 
+    def obs_avoid_callback(self, msg):
+        self.is_avoiding = msg.data
+
     def start_stop_callback(self, msg):
         self.last_gui_command = msg.data.lower()
         if self.last_gui_command == "manual":
+            # Safety override: Do not abort PID if obstacle avoidance needs it to maneuver
+            if self.is_avoiding:
+                self.get_logger().warn("Obstacle avoidance active. Ignoring manual mode switch in PID node.")
+                return
+                
             self.get_logger().info("Manual mode activated. Stopping PID control.")
             self.stop_robot()
             self.has_target = False  # Clear any active target when switching to manual

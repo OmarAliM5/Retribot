@@ -33,8 +33,9 @@ class PositionPIDNode(Node):
         self.kp_yaw = 0.4
         self.kp_final_yaw = 0.8
 
-        self.max_v = 0.12
-        self.max_w = 0.2
+        # --- SPEED LIMITS REDUCED HERE ---
+        self.max_v = 0.08  # Reduced from 0.12
+        self.max_w = 0.12  # Reduced from 0.20
 
         self.pos_tolerance = 0.04
         self.yaw_tolerance = math.radians(5.0)
@@ -154,7 +155,9 @@ class PositionPIDNode(Node):
         if distance > self.pos_tolerance:
             vx = self.clamp(self.kp_dist * ex_body, self.max_v)
             vy = self.clamp(self.kp_dist * ey_body, self.max_v)
-            wz = self.clamp(self.kp_yaw * final_yaw_error, 0.15)
+            
+            # --- IN-MOTION TURNING LIMIT REDUCED HERE ---
+            wz = self.clamp(self.kp_yaw * final_yaw_error, 0.10) # Reduced from 0.15
 
             cmd.linear.x = vx
             cmd.linear.y = vy

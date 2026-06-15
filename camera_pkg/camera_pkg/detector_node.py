@@ -41,7 +41,7 @@ class CameraDetectorNode(Node):
 
         self.conf_threshold = 0.20
         self.frame_count = 0
-        self.process_every_n_frames = 10
+        self.process_every_n_frames = 5
 
         self.get_logger().info("Starting rpicam-vid camera stream...")
 

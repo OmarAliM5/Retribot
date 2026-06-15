@@ -19,6 +19,9 @@ class MotionSequence(Node):
         self.obs_sub = self.create_subscription(Bool, '/obstacle_detected', self.obs_callback, 10)
         self.pid_status_sub = self.create_subscription(Bool, '/goal_reached', self.status_callback, 10)
         self.start_stop_sub = self.create_subscription(String, "/gui_command", self.start_stop_callback, 10)
+        
+        # New subscription to know if an item is currently being managed
+        self.collecting_sub = self.create_subscription(Bool, '/collecting_item', self.collecting_callback, 10)
 
         self.target_pub = self.create_publisher(Pose2D, '/target_pose', 10)
         self.obs_avoid_pub = self.create_publisher(Bool, '/obstacle_avoidance', 10)
@@ -29,6 +32,7 @@ class MotionSequence(Node):
         self.pid_goal_reached = True 
         self.start = False
         self.state = 0
+        self.is_collecting = False # Track collection state
 
         self.timer = self.create_timer(0.1, self.sequence_loop)
         self.wait_start = None
@@ -55,6 +59,9 @@ class MotionSequence(Node):
 
     def status_callback(self, msg):
         self.pid_goal_reached = msg.data
+        
+    def collecting_callback(self, msg):
+        self.is_collecting = msg.data
 
     def publish_target(self, x, y, yaw):
         target = Pose2D()
@@ -79,8 +86,8 @@ class MotionSequence(Node):
         is_avoiding = (self.state != 0)
         self.obs_avoid_pub.publish(Bool(data=is_avoiding))
 
-        # 0 -> Wait for obstacle
-        if self.state == 0 and self.obstacle_detected:
+        # 0 -> Wait for obstacle. Added condition: do NOT start if we are collecting an item.
+        if self.state == 0 and self.obstacle_detected and not self.is_collecting:
             self.state = 1
             self.wait_start = time.time()
             self.get_logger().info("Obstacle detected! Halting robot.")
@@ -97,7 +104,6 @@ class MotionSequence(Node):
                 self.state = 0
                 
         # 2 -> Strafe Right 0.65m (Local Y = -0.65)
-        # REMOVED: `and self.pid_goal_reached` to prevent deadlocking against interrupted path targets
         elif self.state == 2:
             current_x = self.pose.position.x
             current_y = self.pose.position.y

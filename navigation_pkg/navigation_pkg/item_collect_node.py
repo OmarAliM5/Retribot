@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String,Bool,Float32,Float32MultiArray ,UInt8
-from geometry_msgs.msg import Twist,Vector3
+from std_msgs.msg import String, Bool, Float32, Float32MultiArray, UInt8
+from geometry_msgs.msg import Twist, Vector3
 from nav_msgs.msg import Odometry
 import time
 import math
@@ -26,7 +26,6 @@ class ItemCollect(Node):
 
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
         
-
         self.item_detected_sub = self.create_subscription(
             Vector3,
             '/detected_item/vector',
@@ -34,29 +33,11 @@ class ItemCollect(Node):
             10
         )
         
-        self.cmd_pub = self.create_publisher(
-            Twist,
-            '/cmd_vel',
-            10
-        )
-
-        self.arm_angle_pub = self.create_publisher(
-            UInt8,
-            '/arm_angle',
-            10
-        )
-
-        self.gripper_angle_pub = self.create_publisher(
-            UInt8,
-            '/gripper_angle',
-            10
-        )
-
-        self.collecting_pub = self.create_publisher(
-            Bool,
-            '/collecting_item',
-            10
-        )
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.arm_angle_pub = self.create_publisher(UInt8, '/arm_angle', 10)
+        self.gripper_angle_pub = self.create_publisher(UInt8, '/gripper_angle', 10)
+        self.collecting_pub = self.create_publisher(Bool, '/collecting_item', 10)
+        
         self.ToF_range_sub = self.create_subscription(
             Float32MultiArray,
             'tof_distances',
@@ -70,8 +51,7 @@ class ItemCollect(Node):
         self.yaw = 0.0
         self.save_pose = None
         self.save_yaw = 0.0
-
-        self.ToF_range=0.0
+        self.ToF_range = 0.0
 
         self.currently_collecting = False
         self.object_center_error = 0.0
@@ -97,8 +77,8 @@ class ItemCollect(Node):
 
         if command == 'auto':
             self.start = True
-            self.collecting_pub.publish(Bool(data=True))
-            self.get_logger().info('Auto mode activated. Item collect enabled.')
+            # Removed the True publish from here. It should only broadcast True when an item is SEEN.
+            self.get_logger().info('Auto mode activated. Item collect armed.')
             return
 
         if command == 'stop' or command == 'manual':
@@ -113,9 +93,12 @@ class ItemCollect(Node):
             self.currently_collecting = True
             self.object_num = int(msg.x)
             self.object_center_error = (msg.z)
+            # Broadcast that we are actively collecting so path follower and obstacle avoidance pause
+            self.collecting_pub.publish(Bool(data=True)) 
+            self.get_logger().info('Item detected! Taking over robot control.')
+            
         elif self.currently_collecting and (msg.x ==self.object_num) and (msg.y >= 0.6) and self.start:
             self.object_center_error = (msg.z)
-
 
     def control_loop(self):
         if self.wait_start is None:
@@ -133,23 +116,20 @@ class ItemCollect(Node):
             self.state = 1
 
         elif self.state == 1:
-            
-            if abs(self.object_center_error)>0.1:
+            if abs(self.object_center_error) > 0.1:
                 cmd = Twist()
-                cmd.angular.z = -0.1* (1 if self.object_center_error > 0 else -1)
-                
+                cmd.angular.z = -0.1 * (1 if self.object_center_error > 0 else -1)
                 self.cmd_pub.publish(cmd)
-            else :
-                cmd = Twist()
+            else:
                 self.cmd_pub.publish(Twist())
                 self.state = 2
 
         elif self.state == 2:
-            if self.ToF_range >= 320:
+            if self.ToF_range >= 310:
                 cmd = Twist()
                 cmd.linear.x = self.linear_speed
                 self.cmd_pub.publish(cmd)
-            elif self.ToF_range < 280:
+            elif self.ToF_range < 270:
                 cmd = Twist()
                 cmd.linear.x = -self.linear_speed
                 self.cmd_pub.publish(cmd)
@@ -164,18 +144,21 @@ class ItemCollect(Node):
             if time.time() - self.wait_start > 2.0:
                 self.state = 4
                 self.wait_start = time.time()
+                
         elif self.state == 4:
             self.arm_angle_pub.publish(UInt8(data=150))
             self.gripper_angle_pub.publish(UInt8(data=160))
             if time.time() - self.wait_start > 2.0:
                 self.state = 5
                 self.wait_start = time.time()
+                
         elif self.state == 5:
             self.arm_angle_pub.publish(UInt8(data=0))
             self.gripper_angle_pub.publish(UInt8(data=160))
             if time.time() - self.wait_start > 2.0:
                 self.state = 6
                 self.wait_start = time.time()
+                
         elif self.state == 6:
             self.arm_angle_pub.publish(UInt8(data=0))
             self.gripper_angle_pub.publish(UInt8(data=0))
@@ -184,8 +167,10 @@ class ItemCollect(Node):
                 self.currently_collecting = False
                 self.object_num = 0
                 self.object_center_error = 0.0
+                # Collection finished, release control back to the path follower
                 self.collecting_pub.publish(Bool(data=False))
                 self.get_logger().info('Item collected and reset to search for next item.')
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -196,7 +181,3 @@ def main(args=None):
     
 if __name__ == '__main__':
     main()
-
-
-
-            

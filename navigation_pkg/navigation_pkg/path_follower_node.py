@@ -97,6 +97,12 @@ class MotionSequence(Node):
         try:
             command = msg.data.lower()
             if command == "auto":
+                # ADDED: Check if the sequence is already complete, reset if true
+                if self.state >= len(self.rel_targets):
+                    self.get_logger().info("Previous path complete. Restarting sequence from the beginning.")
+                    self.state = 0
+                    self.save_state = 0
+                
                 self.get_logger().info("Path following armed.")
                 self.start = True
                 self.goal_reached = True  
@@ -162,7 +168,7 @@ class MotionSequence(Node):
 
         # Path sequence finished
         elif self.state == len(self.rel_targets) and self.goal_reached:
-            self.get_logger().info("Lawnmower sequence complete!")
+            self.get_logger().info("Lawnmower sequence complete! Waiting for AUTO command to restart.")
             self.save_state = self.state
             self.state += 1 # Increment to prevent looping
 

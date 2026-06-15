@@ -5,9 +5,11 @@ import os
 from flask import Flask, render_template, request, jsonify, Response
 from ament_index_python.packages import get_package_share_directory
 
+from std_msgs.msg import String, UInt8
+import math
 import rclpy
 from rclpy.node import Node
-
+from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 from sensor_msgs.msg import CompressedImage
 
@@ -27,11 +29,35 @@ class RobotGuiNode(Node):
             self.camera_callback,
             10
         )
+        self.battery_sub = self.create_subscription(
+            UInt8,
+            "/battery_percentage",
+            self.battery_callback,
+            10
+        )
+
+
+        self.speed_sub = self.create_subscription(
+            Twist,
+           '/cmd_vel',
+            self.speed_callback,
+            10
+        )
 
         # New simple detection result
         self.latest_detection = {
             "class_name": "none",
             "confidence": 0.0
+        }
+
+        self.latest_speed = {
+            "type": "linear",
+            "value": 0.0,
+            "unit": "m/s"
+        }
+
+        self.latest_battery = {
+            "percentage": 0
         }
 
         self.detection_sub = self.create_subscription(
@@ -55,6 +81,32 @@ class RobotGuiNode(Node):
 
     def camera_callback(self, msg):
         self.latest_frame = bytes(msg.data)
+
+    def speed_callback(self, msg):
+        linear_speed = math.sqrt(
+            msg.linear.x ** 2 + msg.linear.y ** 2 
+        )
+            
+        angular_speed = abs(msg.angular.z)
+
+        if angular_speed > 0.01 and linear_speed < 0.01:
+            self.latest_speed = {
+                "type": "angular",
+                "value": round(angular_speed, 2),
+                "unit": "rad/s"
+            }
+        else:
+            self.latest_speed = {
+                "type": "linear",
+                "value": round(linear_speed, 2),
+                "unit": "m/s"
+            }
+
+    def battery_callback(self, msg):
+        self.latest_battery = {
+            "percentage": int(msg.data)
+        }
+
 
     def detection_callback(self, msg):
         try:
@@ -116,6 +168,14 @@ class RobotGuiNode(Node):
                 self.generate_frames(),
                 mimetype="multipart/x-mixed-replace; boundary=frame"
             )
+
+        @self.app.route("/speed")
+        def speed():
+            return jsonify(self.latest_speed)
+
+        @self.app.route("/battery")
+        def battery():
+            return jsonify(self.latest_battery)
 
     def run_flask(self):
         self.app.run(

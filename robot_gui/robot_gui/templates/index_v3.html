@@ -443,10 +443,22 @@
           </div>
         </div>
         <div class="telemetry-strip">
-          <div class="telem-item"><span class="telem-label">SPEED</span><span class="telem-value">0.0 m/s</span></div>
-          <div class="telem-item"><span class="telem-label">BATTERY</span><span class="telem-value">87%</span></div>
-          <div class="telem-item"><span class="telem-label">HEADING</span><span class="telem-value">000°</span></div>
-          <div class="telem-item"><span class="telem-label">UPTIME</span><span class="telem-value" id="t-uptime">00:00:00</span></div>
+          <div class="telem-item">
+            <span class="telem-label">SPEED</span>
+            <span class="telem-value" id="t-speed">0.00 m/s</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">BATTERY</span>
+            <span class="telem-value">87%</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">HEADING</span>
+            <span class="telem-value">000°</span>
+          </div>
+          <div class="telem-item">
+            <span class="telem-label">UPTIME</span>
+            <span class="telem-value" id="t-uptime">00:00:00</span>
+          </div>
         </div>
       </section>
 
@@ -708,6 +720,7 @@
     const detStatusEl = document.getElementById('det-status');
     const detCountEl  = document.getElementById('det-count');
     const detItemsEl  = document.getElementById('det-items');
+    const speedEl = document.getElementById('t-speed');
 
     const detectedObjects = {};
     const CONF_UPDATE_INTERVAL = 2000;
@@ -755,6 +768,32 @@
       });
     }
 
+    function updateSpeedTelemetry(data) {
+      if (!data || typeof data.value !== 'number') {
+        speedEl.textContent = '0.00 m/s';
+        return;
+      }
+
+      const value = data.value.toFixed(2);
+      const unit = data.unit || 'm/s';
+
+      speedEl.textContent = value + ' ' + unit;
+    }
+
+
+    function fetchSpeed() {
+      fetch('/speed')
+        .then(r => {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(data => updateSpeedTelemetry(data))
+        .catch(() => {
+          speedEl.textContent = '--';
+        });
+    }
+
+    
     function updateDetection(data) {
       if (!data || !data.class_name || data.class_name === 'none') {
         renderDetections();
@@ -813,8 +852,10 @@
     }
 
     fetchDetections();
+    fetchSpeed();
     setInterval(fetchDetections, 500);
     setInterval(removeStaleDetections, 500);
+    setInterval(fetchSpeed, 300);
 
     console.log('[ROS2] Dashboard ready. Arrow keys = directions, Space = STOP');
   </script>

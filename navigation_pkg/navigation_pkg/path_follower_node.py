@@ -44,9 +44,40 @@ class MotionSequence(Node):
         self.initial_yaw = 0.0
 
         self.save_state = 0
-        self.save_x=0.0
-        self.save_y=0.0
-        self.save_yaw=0.0
+        self.save_x = 0.0
+        self.save_y = 0.0
+        self.save_yaw = 0.0
+
+        # Generate the Mirrored Lawnmower Path Pattern
+        self.rel_targets = self.generate_path()
+
+    def generate_path(self):
+        targets = []
+        for i in range(3):
+            # Each full pass shifts the Y axis by -1.0m total (moving Right in ROS)
+            y_offset = i * -1.0 
+            
+            targets.append(Pose2D(x=2.0, y=y_offset, theta=0.0))                   # Go 2m in X
+            targets.append(Pose2D(x=2.0, y=y_offset, theta=-math.pi/2))            # Rotate -90 deg
+            targets.append(Pose2D(x=2.0, y=y_offset - 0.5, theta=-math.pi/2))      # Move 0.5m in -Y
+            targets.append(Pose2D(x=2.0, y=y_offset - 0.5, theta=-math.pi))        # Rotate -90 deg (to -180)
+            targets.append(Pose2D(x=0.0, y=y_offset - 0.5, theta=-math.pi))        # Move 2m in -X
+            
+            if i < 2:
+                # Normal Sequence: Rotate 90, Move -Y, Rotate 90
+                targets.append(Pose2D(x=0.0, y=y_offset - 0.5, theta=-math.pi/2))  # Rotate 90 deg (to -90)
+                targets.append(Pose2D(x=0.0, y=y_offset - 1.0, theta=-math.pi/2))  # Move 0.5m in -Y
+                targets.append(Pose2D(x=0.0, y=y_offset - 1.0, theta=0.0))         # Rotate 90 deg (to 0)
+            else:
+                # Final Pass: Skip rotate 90, instead rotate -90 and go home
+                # Current yaw is -180. Rotating -90 = -270 deg (which normalizes to +90 deg / pi/2 rad)
+                targets.append(Pose2D(x=0.0, y=y_offset - 0.5, theta=math.pi/2))
+                # Return to initial origin maintaining new heading (facing positive Y / Left)
+                targets.append(Pose2D(x=0.0, y=0.0, theta=math.pi/2))
+                # Re-align to exact initial starting orientation
+                targets.append(Pose2D(x=0.0, y=0.0, theta=0.0))
+                
+        return targets
 
     def odom_callback(self, msg):
         self.pose = msg.pose.pose
@@ -68,7 +99,7 @@ class MotionSequence(Node):
             if command == "auto":
                 self.get_logger().info("Path following armed.")
                 self.start = True
-                self.goal_reached = True  # Allow the sequence to start immediately
+                self.goal_reached = True  
             elif (command == "stop"):
                 self.get_logger().info("Stopping path following.")
                 self.state = self.save_state
@@ -81,7 +112,6 @@ class MotionSequence(Node):
                 self.save_y = self.pose.position.y
                 self.save_yaw = self.yaw
                 self.state = 99
-
                 
         except Exception as e:
             self.get_logger().error(f"Error in start_stop_callback: {e}")
@@ -120,49 +150,24 @@ class MotionSequence(Node):
             self.has_initial_pose = True
             self.get_logger().info(f"Locked Initial Origin -> X:{self.initial_x:.2f}, Y:{self.initial_y:.2f}, Yaw:{math.degrees(self.initial_yaw):.1f}°")
         
-        # Define the path RELATIVE to the starting origin
-        rel_targets = [
-            Pose2D(x=1.0, y=0.0, theta=0.0),    # State 0: 1 meter directly in front of the start point
-            Pose2D(x=1.0, y=0.0, theta=-1.57),  # State 1: Pivot -90 degrees
-            Pose2D(x=1.0, y=-1.0, theta=-1.57), # State 2: 1 meter right of the start point
-            Pose2D(x=1.0, y=-1.0, theta=-3.14)  # State 3: Pivot another -90 degrees
-        ]
-
-        if self.state == 0 and self.goal_reached:
-            target = self.get_absolute_target(rel_targets[0])
+        # --- Simplified Dynamic State Machine ---
+        
+        # Execute active path
+        if self.state < len(self.rel_targets) and self.goal_reached:
+            target = self.get_absolute_target(self.rel_targets[self.state])
             self.publish_target(target)
-            self.save_state = 0
-            self.state = 1
-            self.get_logger().info("State 0 complete.")
+            self.save_state = self.state
+            self.state += 1
+            self.get_logger().info(f"State {self.save_state} complete.")
 
-        elif self.state == 1 and self.goal_reached:
-            target = self.get_absolute_target(rel_targets[1])
-            self.publish_target(target)
-            self.save_state = 1
-            self.state = 2
-            self.get_logger().info("State 1 complete.")
+        # Path sequence finished
+        elif self.state == len(self.rel_targets) and self.goal_reached:
+            self.get_logger().info("Lawnmower sequence complete!")
+            self.save_state = self.state
+            self.state += 1 # Increment to prevent looping
 
-        elif self.state == 2 and self.goal_reached:
-            target = self.get_absolute_target(rel_targets[2])
-            self.publish_target(target)
-            self.save_state = 2
-            self.state = 3
-            self.get_logger().info("State 2 complete.")
-
-        elif self.state == 3 and self.goal_reached:
-            target = self.get_absolute_target(rel_targets[3])
-            self.publish_target(target)
-            self.save_state = 3
-            self.state = 4
-            self.get_logger().info("State 3 complete.")
-
-        elif self.state == 4 and self.goal_reached:
-            self.get_logger().info("Path sequence complete!")
-            self.save_state = 4
-            self.state = 5
-            self.get_logger().info("state 4 complete.")
-
-        elif self.state == 99 :
+        # Resume from manual mode
+        elif self.state == 99:
             self.publish_target(Pose2D(x=self.save_x, y=self.save_y, theta=self.save_yaw))
             self.get_logger().info("Resuming from manual mode.")
             self.state = self.save_state

@@ -30,6 +30,7 @@ setup(
             'path_follower_node = navigation_pkg.path_follower_node:main',
             'manual_mode_node = navigation_pkg.manual_mode:main',
             'obstacle_avoidance_node = navigation_pkg.obstacle_avoid_node:main',
+            'item_collect_node = navigation_pkg.item_collect_node:main',
         ],
     },
 )

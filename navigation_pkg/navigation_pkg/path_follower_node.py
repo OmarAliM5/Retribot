@@ -74,7 +74,7 @@ class MotionSequence(Node):
                 self.state = self.save_state
                 self.start = False
                 self.goal_reached = True
-            elif command == "manual":
+            elif command == "manual" and not(self.obstacle_avoidance or self.obstacle_detected):
                 self.get_logger().info("Manual mode activated. Stopping path following.")
                 self.start = False
                 self.save_x = self.pose.position.x

@@ -53,11 +53,11 @@ def generate_launch_description():
                 executable='mecanum_odometry_node',
                 output='screen'
             ),
-            Node(
-                package='navigation_pkg',
-                executable='path_follower_node',
-                output='screen'
-            ),
+            # Node(
+            #     package='navigation_pkg',
+            #     executable='path_follower_node',
+            #     output='screen'
+            # ),
 
             #TimerAction(
             #    period=5.0,

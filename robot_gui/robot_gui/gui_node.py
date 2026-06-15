@@ -36,7 +36,7 @@ class RobotGuiNode(Node):
 
         self.detection_sub = self.create_subscription(
             String,
-            "/detected_item",
+            "/detected_item/string",
             self.detection_callback,
             10
         )

@@ -8,9 +8,10 @@ import rclpy
 
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
-from std_msgs.msg import String , Float32
+from geometry_msgs.msg import Vector3
 from ament_index_python.packages import get_package_share_directory
 from ultralytics import YOLO
+from std_msgs.msg import String
 
 
 class CameraDetectorNode(Node):
@@ -24,14 +25,13 @@ class CameraDetectorNode(Node):
         )
 
         self.detection_pub = self.create_publisher(
-            String,
-            "/detected_item",
+            Vector3,
+            "/detected_item/vector",
             10
         )
-
-        self.center_error_pub = self.create_publisher(
-            Float32,
-            "/object_center_error",
+        self.detection_pub_gui = self.create_publisher(
+            String,
+            "/detected_item/string",
             10
         )
 
@@ -39,7 +39,7 @@ class CameraDetectorNode(Node):
         model_path = os.path.join(package_share, "models", "best.pt")
         self.model = YOLO(model_path)
 
-        self.conf_threshold = 0.50
+        self.conf_threshold = 0.20
         self.frame_count = 0
         self.process_every_n_frames = 10
 
@@ -49,8 +49,8 @@ class CameraDetectorNode(Node):
             [
                 "rpicam-vid",
                 "-t", "0",
-                "--width", "640",
-                "--height", "480",
+                "--width", "320",
+                "--height", "320",
                 "--codec", "mjpeg",
                 "--nopreview",
                 "-o", "-"
@@ -129,20 +129,32 @@ class CameraDetectorNode(Node):
                         best_name = class_name
                         best_error = center_error
 
-            msg = String()
-        
-            if best_name is not None:
-                msg.data = f"{best_name},{best_conf:.2f}"
-                
-                error_msg = Float32()
-                error_msg.data = float(best_error)
-                self.center_error_pub.publish(error_msg)
+            msg = Vector3()
+            pic= String()
 
-                self.get_logger().info(f"Detected: {msg.data}")
+            if best_name is not None:
+                msg.y = float(best_conf)
+                msg.z = float(best_error)
+                pic.data = f"{best_name},{best_conf:.2f}"
+
+                if best_name == "Green_AirPods":
+                    msg.x = 1.0  
+                elif best_name == "Tennis_Ball":
+                    msg.x = 2.0
+                elif best_name == "White_AirPods":
+                    msg.x = 3.0
+                else:
+                    msg.x = 0.0          
+
+
+                self.get_logger().info(f"Detected: {best_name} | Conf: {msg.y:.2f} | Error: {msg.z:.2f}")
             else:
-                msg.data = "none,0.00"
+                msg.x = 0.0
+                msg.y = 0.0
+                msg.z = 0.0
 
             self.detection_pub.publish(msg)
+            self.detection_pub_gui.publish(pic)
 
     def destroy_node(self):
         if self.process:

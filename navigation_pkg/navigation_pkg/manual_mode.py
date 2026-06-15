@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from geometry_msgs.msg import Twist
 
 
@@ -15,6 +15,14 @@ class ManualMode(Node):
             10
         )
 
+        # Listen to the obstacle avoidance node to know when it is active
+        self.obs_avoid_sub = self.create_subscription(
+            Bool,
+            '/obstacle_avoidance',
+            self.obs_avoid_callback,
+            10
+        )
+
         self.cmd_pub = self.create_publisher(
             Twist,
             '/cmd_vel',
@@ -22,6 +30,7 @@ class ManualMode(Node):
         )
 
         self.manual_active = False
+        self.is_avoiding = False
 
         self.linear_speed = 0.5
         self.side_speed = 0.5
@@ -29,11 +38,25 @@ class ManualMode(Node):
 
         self.get_logger().info('Manual mode node started.')
 
+    def obs_avoid_callback(self, msg):
+        self.is_avoiding = msg.data
+
     def gui_callback(self, msg):
         command = msg.data.lower()
-
         twist = Twist()
 
+        # 1. Safety First: Always allow the robot to be stopped completely
+        if command == 'stop' or command == 'stop_manual':
+            self.publish_stop()
+            self.get_logger().info('Robot stopped.')
+            return
+
+        # 2. Sequence Lockout: Block all other commands if actively avoiding an obstacle
+        if self.is_avoiding:
+            self.get_logger().warn(f'Obstacle avoidance active. Ignoring manual command: {command}')
+            return
+
+        # 3. Mode Switching
         if command == 'manual':
             self.manual_active = True
             self.get_logger().info('Manual mode activated.')
@@ -45,19 +68,11 @@ class ManualMode(Node):
             self.get_logger().info('Auto mode activated. Manual disabled.')
             return
 
-        if command == 'stop':
-            self.publish_stop()
-            self.get_logger().info('Robot stopped.')
-            return
-
+        # 4. Movement Execution
         if not self.manual_active:
             return
 
-        if command == 'stop_manual':
-            self.publish_stop()
-            return
-
-        elif command == 'forward':
+        if command == 'forward':
             twist.linear.x = self.linear_speed
 
         elif command == 'backward':

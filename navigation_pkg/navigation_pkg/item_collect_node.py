@@ -57,7 +57,7 @@ class ItemCollect(Node):
         self.object_center_error = 0.0
         self.object_num = 0
         self.state = 0
-        self.linear_speed = 0.2
+        self.linear_speed = 0.1
         self.side_speed = -0.05
         self.Kp = -0.1
         self.start = False
@@ -125,11 +125,11 @@ class ItemCollect(Node):
                 self.state = 2
 
         elif self.state == 2:
-            if self.ToF_range >= 310:
+            if self.ToF_range >= 320:
                 cmd = Twist()
                 cmd.linear.x = self.linear_speed
                 self.cmd_pub.publish(cmd)
-            elif self.ToF_range < 270:
+            elif self.ToF_range < 260:
                 cmd = Twist()
                 cmd.linear.x = -self.linear_speed
                 self.cmd_pub.publish(cmd)
@@ -139,29 +139,36 @@ class ItemCollect(Node):
                 self.wait_start = time.time()
 
         elif self.state == 3:
-            self.arm_angle_pub.publish(UInt8(data=150))
-            self.gripper_angle_pub.publish(UInt8(data=100))
+            self.arm_angle_pub.publish(UInt8(data=160))
+            self.gripper_angle_pub.publish(UInt8(data=60))
             if time.time() - self.wait_start > 2.0:
                 self.state = 4
                 self.wait_start = time.time()
-                
+
         elif self.state == 4:
-            self.arm_angle_pub.publish(UInt8(data=150))
-            self.gripper_angle_pub.publish(UInt8(data=160))
-            if time.time() - self.wait_start > 2.0:
+            self.arm_angle_pub.publish(UInt8(data=165))
+            self.gripper_angle_pub.publish(UInt8(data=60))
+            if time.time() - self.wait_start > 1.0:
                 self.state = 5
                 self.wait_start = time.time()
-                
+
         elif self.state == 5:
-            self.arm_angle_pub.publish(UInt8(data=0))
-            self.gripper_angle_pub.publish(UInt8(data=160))
+            self.arm_angle_pub.publish(UInt8(data=150))
+            self.gripper_angle_pub.publish(UInt8(data=130))
             if time.time() - self.wait_start > 2.0:
                 self.state = 6
                 self.wait_start = time.time()
                 
         elif self.state == 6:
-            self.arm_angle_pub.publish(UInt8(data=0))
-            self.gripper_angle_pub.publish(UInt8(data=0))
+            self.arm_angle_pub.publish(UInt8(data=20))
+            self.gripper_angle_pub.publish(UInt8(data=130))
+            if time.time() - self.wait_start > 2.0:
+                self.state = 7
+                self.wait_start = time.time()
+                
+        elif self.state == 7:
+            self.arm_angle_pub.publish(UInt8(data=20))
+            self.gripper_angle_pub.publish(UInt8(data=60))
             if time.time() - self.wait_start > 2.0:
                 self.state = 0
                 self.currently_collecting = False

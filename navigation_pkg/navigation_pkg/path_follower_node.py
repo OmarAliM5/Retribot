@@ -18,7 +18,6 @@ class MotionSequence(Node):
         super().__init__('path_follower_node')
 
         self.sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
-        self.obs_sub = self.create_subscription(Bool, '/obstacle_detected', self.obs_callback, 10)
         self.pid_status_sub = self.create_subscription(Bool, '/goal_reached', self.status_callback, 10)
         self.start_stop_sub = self.create_subscription(String, "/gui_command", self.start_stop_callback, 10)
         self.obs_avoid_sub = self.create_subscription(Bool, '/obstacle_avoidance', self.obs_avoidance_callback, 10)
@@ -78,9 +77,6 @@ class MotionSequence(Node):
         self.pose = msg.pose.pose
         self.yaw = get_yaw(self.pose.orientation)
 
-    def obs_callback(self, msg):
-        self.obstacle_detected = msg.data
-
     def status_callback(self, msg):
         self.goal_reached = msg.data
 
@@ -139,7 +135,7 @@ class MotionSequence(Node):
             return
 
         # Added self.is_collecting to the lockout conditions
-        if self.obstacle_avoidance or self.obstacle_detected or self.is_collecting or not self.start:
+        if self.obstacle_avoidance or self.is_collecting or not self.start:
             return
             
         if not self.has_initial_pose:

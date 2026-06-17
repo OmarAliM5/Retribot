@@ -20,7 +20,7 @@ class ObstacleDetectorNode(Node):
         
         # --- 1. ToF Parameters & Setup ---
         self.declare_parameter('offset_mm', 70)
-        self.declare_parameter('threshold_mm', 200)
+        self.declare_parameter('threshold_mm', 100)
         
         # Unique addresses for the 3 sensors (default is 0x29)
         self.tof_addresses = [0x2A, 0x2B, 0x2C]

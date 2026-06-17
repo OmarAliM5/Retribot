@@ -1,7 +1,10 @@
+# Author: Mark George Makram
+# ID: 22P0060
+
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String, Bool, Float32, Float32MultiArray, UInt8
-from geometry_msgs.msg import Twist, Vector3
+from geometry_msgs.msg import Twist, Vector3, Pose2D
 from nav_msgs.msg import Odometry
 import time
 import math
@@ -38,10 +41,21 @@ class ItemCollect(Node):
         self.gripper_angle_pub = self.create_publisher(UInt8, '/gripper_angle', 10)
         self.collecting_pub = self.create_publisher(Bool, '/collecting_item', 10)
         
+        # New publisher for the PID target
+        self.target_pub = self.create_publisher(Pose2D, '/target_pose', 10)
+        
         self.ToF_range_sub = self.create_subscription(
             Float32MultiArray,
             'tof_distances',
             self.ToF_range_callback,
+            10
+        )
+
+        # New subscriber to check if PID backup is complete
+        self.pid_status_sub = self.create_subscription(
+            Bool, 
+            '/goal_reached', 
+            self.status_callback, 
             10
         )
 
@@ -51,7 +65,7 @@ class ItemCollect(Node):
         self.yaw = 0.0
         self.save_pose = None
         self.save_yaw = 0.0
-        self.ToF_range = 0.0
+        self.ToF_range = 1000.0 # Initialize high so it doesn't trigger 0 falsely
 
         self.currently_collecting = False
         self.object_center_error = 0.0
@@ -62,6 +76,10 @@ class ItemCollect(Node):
         self.Kp = -0.1
         self.start = False
         self.wait_start = None
+        
+        self.goal_reached = False
+        self.target_published = False
+
         self.get_logger().info('Item collect node started.')
 
     def odom_callback(self, msg):
@@ -72,12 +90,14 @@ class ItemCollect(Node):
         if len(msg.data) > 0:
             self.ToF_range = min(msg.data)
 
+    def status_callback(self, msg):
+        self.goal_reached = msg.data
+
     def gui_callback(self, msg):
         command = msg.data.lower()
 
         if command == 'auto':
             self.start = True
-            # Removed the True publish from here. It should only broadcast True when an item is SEEN.
             self.get_logger().info('Auto mode activated. Item collect armed.')
             return
 
@@ -93,7 +113,6 @@ class ItemCollect(Node):
             self.currently_collecting = True
             self.object_num = int(msg.x)
             self.object_center_error = (msg.z)
-            # Broadcast that we are actively collecting so path follower and obstacle avoidance pause
             self.collecting_pub.publish(Bool(data=True)) 
             self.get_logger().info('Item detected! Taking over robot control.')
             
@@ -116,57 +135,71 @@ class ItemCollect(Node):
             self.state = 1
 
         elif self.state == 1:
-            if abs(self.object_center_error) > 0.1:
+            if abs(self.object_center_error) > 0.05:
                 cmd = Twist()
-                cmd.angular.z = -0.1 * (1 if self.object_center_error > 0 else -1)
+                cmd.linear.y = -0.08 * (1 if self.object_center_error > 0 else -1)
                 self.cmd_pub.publish(cmd)
             else:
                 self.cmd_pub.publish(Twist())
                 self.state = 2
 
         elif self.state == 2:
-            if self.ToF_range >= 320:
+            # Move forward until ToF reads exactly 0
+            if self.ToF_range > 0.0:
                 cmd = Twist()
                 cmd.linear.x = self.linear_speed
                 self.cmd_pub.publish(cmd)
-            elif self.ToF_range < 260:
-                cmd = Twist()
-                cmd.linear.x = -self.linear_speed
-                self.cmd_pub.publish(cmd)
             else:
-                self.cmd_pub.publish(Twist())
+                self.cmd_pub.publish(Twist()) # Stop moving forward
                 self.state = 3
-                self.wait_start = time.time()
+                self.target_published = False
+                self.goal_reached = False
 
         elif self.state == 3:
-            self.arm_angle_pub.publish(UInt8(data=160))
-            self.gripper_angle_pub.publish(UInt8(data=60))
-            if time.time() - self.wait_start > 2.0:
+            # Publish a target 30 cm backward using the PID controller
+            if not self.target_published:
+                backup_target = Pose2D()
+                backup_target.x = self.pose.position.x - 0.25 * math.cos(self.yaw)
+                backup_target.y = self.pose.position.y - 0.25 * math.sin(self.yaw)
+                backup_target.theta = self.yaw
+                
+                self.target_pub.publish(backup_target)
+                self.target_published = True
+                self.get_logger().info('ToF read 0. Backing up 30 cm via PID target.')
+                
+            elif self.goal_reached:
                 self.state = 4
                 self.wait_start = time.time()
 
         elif self.state == 4:
-            self.arm_angle_pub.publish(UInt8(data=165))
+            self.arm_angle_pub.publish(UInt8(data=160))
             self.gripper_angle_pub.publish(UInt8(data=60))
-            if time.time() - self.wait_start > 1.0:
+            if time.time() - self.wait_start > 2.0:
                 self.state = 5
                 self.wait_start = time.time()
 
         elif self.state == 5:
-            self.arm_angle_pub.publish(UInt8(data=150))
-            self.gripper_angle_pub.publish(UInt8(data=130))
-            if time.time() - self.wait_start > 2.0:
+            self.arm_angle_pub.publish(UInt8(data=165))
+            self.gripper_angle_pub.publish(UInt8(data=60))
+            if time.time() - self.wait_start > 1.0:
                 self.state = 6
                 self.wait_start = time.time()
-                
+
         elif self.state == 6:
-            self.arm_angle_pub.publish(UInt8(data=20))
+            self.arm_angle_pub.publish(UInt8(data=165))
             self.gripper_angle_pub.publish(UInt8(data=130))
             if time.time() - self.wait_start > 2.0:
                 self.state = 7
                 self.wait_start = time.time()
                 
         elif self.state == 7:
+            self.arm_angle_pub.publish(UInt8(data=20))
+            self.gripper_angle_pub.publish(UInt8(data=130))
+            if time.time() - self.wait_start > 3.0:
+                self.state = 8
+                self.wait_start = time.time()
+                
+        elif self.state == 8:
             self.arm_angle_pub.publish(UInt8(data=20))
             self.gripper_angle_pub.publish(UInt8(data=60))
             if time.time() - self.wait_start > 2.0:

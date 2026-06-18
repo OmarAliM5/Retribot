@@ -20,7 +20,7 @@ class ObstacleDetectorNode(Node):
         
         # --- 1. ToF Parameters & Setup ---
         self.declare_parameter('offset_mm', 70)
-        self.declare_parameter('threshold_mm', 100)
+        self.declare_parameter('threshold_mm', 70)
         self.declare_parameter('required_detections', 4) # Added parameter for consecutive hits
         
         self.consecutive_detections = 0 # Counter for consecutive detections

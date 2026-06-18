@@ -57,7 +57,7 @@ class MotionSequence(Node):
 
     def generate_path(self):
         targets = []
-        for i in range(3):
+        for i in range(2):
             y_offset = i * -1.0 
             targets.append(Pose2D(x=2.0, y=y_offset, theta=0.0))                   
             targets.append(Pose2D(x=2.0, y=y_offset, theta=-math.pi/2))            
@@ -65,7 +65,7 @@ class MotionSequence(Node):
             targets.append(Pose2D(x=2.0, y=y_offset - 0.5, theta=-math.pi))        
             targets.append(Pose2D(x=0.0, y=y_offset - 0.5, theta=-math.pi))        
             
-            if i < 2:
+            if i < 1:
                 targets.append(Pose2D(x=0.0, y=y_offset - 0.5, theta=-math.pi/2))  
                 targets.append(Pose2D(x=0.0, y=y_offset - 1.0, theta=-math.pi/2))  
                 targets.append(Pose2D(x=0.0, y=y_offset - 1.0, theta=0.0))         

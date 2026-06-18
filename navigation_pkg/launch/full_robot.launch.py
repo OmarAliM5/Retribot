@@ -53,9 +53,39 @@ def generate_launch_description():
                 executable='mecanum_odometry_node',
                 output='screen'
             ),
+            Node(
+                package='navigation_pkg',
+                executable='path_follower_node',
+                output='screen'
+            ),
+            Node(
+                package='navigation_pkg',
+                executable='item_collect_node',
+                output='screen'
+            ),
+            Node(
+                package='navigation_pkg',
+                executable='manual_mode_node',
+                output='screen'
+            ),
+            Node(
+                package='navigation_pkg',
+                executable='obstacle_avoidance_node',
+                output='screen'
+            ),
+            Node(
+                package='obstacle_sensors',
+                executable='obstacle_detect.py',
+                output='screen'
+            ),
+            Node(
+                package='camera_pkg',
+                executable='camera_detector_node',
+                output='screen'
+            ),
             # Node(
-            #     package='navigation_pkg',
-            #     executable='path_follower_node',
+            #     package='robot_gui',
+            #     executable='gui_node',
             #     output='screen'
             # ),
 

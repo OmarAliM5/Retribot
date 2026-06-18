@@ -4,8 +4,9 @@ import os
 
 from flask import Flask, render_template, request, jsonify, Response
 from ament_index_python.packages import get_package_share_directory
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
-from std_msgs.msg import String, UInt8
+from std_msgs.msg import String, UInt8 , Float32
 import math
 import rclpy
 from rclpy.node import Node
@@ -19,6 +20,7 @@ class RobotGuiNode(Node):
         super().__init__("robot_gui_node")
 
         self.command_pub = self.create_publisher(String, "/gui_command", 10)
+        qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
 
         # Store latest compressed JPEG bytes
         self.latest_frame = None
@@ -30,10 +32,10 @@ class RobotGuiNode(Node):
             10
         )
         self.battery_sub = self.create_subscription(
-            UInt8,
-            "/battery_percentage",
+            Float32,
+            "/battery_volt",
             self.battery_callback,
-            10
+            qos
         )
 
 
@@ -103,8 +105,10 @@ class RobotGuiNode(Node):
             }
 
     def battery_callback(self, msg):
+        battery_percentage = ((float(msg.data) - 11.0) / (12.4 - 11.0) ) * 100.0
+
         self.latest_battery = {
-            "percentage": int(msg.data)
+            "percentage": round(battery_percentage, 0)
         }
 
 

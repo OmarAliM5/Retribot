@@ -449,7 +449,7 @@
           </div>
           <div class="telem-item">
             <span class="telem-label">BATTERY</span>
-            <span class="telem-value">87%</span>
+            <span class="telem-value" id="t-battery">0%</span>
           </div>
           <div class="telem-item">
             <span class="telem-label">HEADING</span>
@@ -721,6 +721,7 @@
     const detCountEl  = document.getElementById('det-count');
     const detItemsEl  = document.getElementById('det-items');
     const speedEl = document.getElementById('t-speed');
+    const batteryEl = document.getElementById('t-battery');
 
     const detectedObjects = {};
     const CONF_UPDATE_INTERVAL = 2000;
@@ -751,7 +752,9 @@
 
       items.forEach(item => {
         const pct  = Math.round(item.confidence * 100);
-        const tier = item.confidence >= 0.75 ? 'high' : 'low';
+        const tier = item.confidence >= 0.70 ? 'high' : 'low';
+
+        if (item.confidence<0.60){return;}
 
         const tag = document.createElement('div');
         tag.className = 'det-tag ' + tier;
@@ -790,6 +793,26 @@
         .then(data => updateSpeedTelemetry(data))
         .catch(() => {
           speedEl.textContent = '--';
+        });
+    }
+    function updateBatteryTelemetry(data) {
+      if (!data || typeof data.percentage !== 'number') {
+        batteryEl.textContent = '--';
+        return;
+      }
+
+      batteryEl.textContent = data.percentage + '%';
+    }
+
+    function fetchBattery() {
+      fetch('/battery')
+        .then(r => {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(data => updateBatteryTelemetry(data))
+        .catch(() => {
+          batteryEl.textContent = '--';
         });
     }
 
@@ -853,9 +876,11 @@
 
     fetchDetections();
     fetchSpeed();
+    fetchBattery();
     setInterval(fetchDetections, 500);
     setInterval(removeStaleDetections, 500);
     setInterval(fetchSpeed, 300);
+    setInterval(fetchBattery, 5000);
 
     console.log('[ROS2] Dashboard ready. Arrow keys = directions, Space = STOP');
   </script>

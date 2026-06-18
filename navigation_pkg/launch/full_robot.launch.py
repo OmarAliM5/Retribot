@@ -13,6 +13,12 @@ def generate_launch_description():
             'pkill -f mecanum_odometry_node || true; '
             'pkill -f path_follower_node || true; '
             'pkill -f imu_node || true; '
+            'pkill -f item_collect_node || true; '
+            'pkill -f manual_mode_node || true; '
+            'pkill -f obstacle_avoidance_node || true; '
+            'pkill -f obstacle_detect.py || true; '
+            'pkill -f camera_detector_node || true; '
+            'pkill -f gui_node || true; '
             'sleep 1'
         ],
         output='screen'
@@ -89,16 +95,6 @@ def generate_launch_description():
             #     output='screen'
             # ),
 
-            #TimerAction(
-            #    period=5.0,
-            #    actions=[
-            #       Node(
-            #           package='navigation_pkg',
-            #          executable='path_follower_node',
-            #           output='screen'
-            #      )
-            #  ]
-            #),
         ]
     )
 

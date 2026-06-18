@@ -138,7 +138,7 @@ class ItemCollect(Node):
             if abs(self.object_center_error) > 0.06:
                 self.get_logger().info(f'State 1: Aligning with item. Current error: {self.object_center_error:.3f}')
                 cmd = Twist()
-                cmd.angular.z = (-0.1*self.object_center_error)
+                cmd.angular.z = (-0.15*self.object_center_error)
                 self.cmd_pub.publish(cmd)
             else:
                 self.get_logger().info('State 1: Alignment complete. Transitioning to forward approach.')

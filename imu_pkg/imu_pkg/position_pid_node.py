@@ -35,7 +35,7 @@ class PositionPIDNode(Node):
 
         # --- SPEED LIMITS REDUCED HERE ---
         self.max_v = 0.04  # Reduced from 0.12
-        self.max_w = 0.08  # Reduced from 0.20
+        self.max_w = 0.12  # Reduced from 0.20
 
         self.pos_tolerance = 0.04
         self.yaw_tolerance = math.radians(5.0)

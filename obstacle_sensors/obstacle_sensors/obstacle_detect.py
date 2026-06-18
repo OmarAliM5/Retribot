@@ -21,7 +21,10 @@ class ObstacleDetectorNode(Node):
         # --- 1. ToF Parameters & Setup ---
         self.declare_parameter('offset_mm', 70)
         self.declare_parameter('threshold_mm', 100)
+        self.declare_parameter('required_detections', 4) # Added parameter for consecutive hits
         
+        self.consecutive_detections = 0 # Counter for consecutive detections
+
         # Unique addresses for the 3 sensors (default is 0x29)
         self.tof_addresses = [0x2A, 0x2B, 0x2C]
         self.xshut_pins = [17, 27, 22]
@@ -83,7 +86,7 @@ class ObstacleDetectorNode(Node):
                 self.get_logger().error(f'Error initializing ToF {i+1}: {e}')
 
     def timer_callback(self):
-        obstacle_detected = False
+        current_raw_detection = False
         tof_measurements = []
 
         # --- Check ToF Sensors ---
@@ -99,7 +102,7 @@ class ObstacleDetectorNode(Node):
                 tof_measurements.append(float(corrected_distance))
                 
                 if corrected_distance < threshold:
-                    obstacle_detected = True
+                    current_raw_detection = True
             except Exception as e:
                 self.get_logger().error(f'Error reading ToF sensor {i+1}: {e}')
                 # Append -1.0 so the array always has 3 elements, indicating a failed read
@@ -109,14 +112,23 @@ class ObstacleDetectorNode(Node):
         for pin, sensor in self.ir_sensors.items():
             is_intercepted = not bool(sensor.value)
             if is_intercepted:
-                obstacle_detected = True
+                current_raw_detection = True
                 self.get_logger().debug(f'IR Sensor {pin} Intercepted!')
+
+        # --- Apply Filtering Logic ---
+        if current_raw_detection:
+            self.consecutive_detections += 1
+        else:
+            self.consecutive_detections = 0
+            
+        required_hits = self.get_parameter('required_detections').get_parameter_value().integer_value
+        filtered_obstacle_detected = (self.consecutive_detections >= required_hits)
 
         # --- Publish the Data ---
         
-        # 1. Publish the combined boolean state
+        # 1. Publish the combined, filtered boolean state
         obs_msg = Bool()
-        obs_msg.data = obstacle_detected
+        obs_msg.data = filtered_obstacle_detected
         self.obstacle_pub.publish(obs_msg)
         
         # 2. Publish the ToF distances array
@@ -125,8 +137,8 @@ class ObstacleDetectorNode(Node):
         self.distance_pub.publish(dist_msg)
         
         # Optional overall log
-        if obstacle_detected:
-            self.get_logger().debug('Obstacle detected by at least one sensor!')
+        if filtered_obstacle_detected:
+            self.get_logger().debug(f'Obstacle verified! ({self.consecutive_detections} consecutive hits)')
 
 
 def main(args=None):

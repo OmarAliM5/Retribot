@@ -108,8 +108,8 @@ class MotionSequence(Node):
             current_x = self.pose.position.x
             current_y = self.pose.position.y
             
-            target_x = current_x + (0.65 * math.sin(self.yaw))
-            target_y = current_y - (0.65 * math.cos(self.yaw))
+            target_x = current_x + (0.55 * math.sin(self.yaw))
+            target_y = current_y - (0.55 * math.cos(self.yaw))
             
             self.publish_target(target_x, target_y, self.yaw)
             self.state = 3
@@ -119,8 +119,8 @@ class MotionSequence(Node):
             current_x = self.pose.position.x
             current_y = self.pose.position.y
             
-            target_x = current_x + (0.65 * math.cos(self.yaw))
-            target_y = current_y + (0.65 * math.sin(self.yaw))
+            target_x = current_x + (0.75 * math.cos(self.yaw))
+            target_y = current_y + (0.75 * math.sin(self.yaw))
             
             self.publish_target(target_x, target_y, self.yaw)
             self.state = 4
@@ -130,8 +130,8 @@ class MotionSequence(Node):
             current_x = self.pose.position.x
             current_y = self.pose.position.y
             
-            target_x = current_x - (0.65 * math.sin(self.yaw))
-            target_y = current_y + (0.65 * math.cos(self.yaw))
+            target_x = current_x - (0.55 * math.sin(self.yaw))
+            target_y = current_y + (0.55 * math.cos(self.yaw))
             
             self.publish_target(target_x, target_y, self.yaw)
             self.state = 5

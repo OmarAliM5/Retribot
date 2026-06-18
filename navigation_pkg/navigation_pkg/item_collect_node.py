@@ -71,8 +71,8 @@ class ItemCollect(Node):
         self.object_center_error = 0.0
         self.object_num = 0
         self.state = 0
-        self.linear_speed = 0.1
-        self.side_speed = -0.05
+        self.linear_speed = 0.02
+        self.side_speed = -0.0
         self.Kp = -0.1
         self.start = False
         self.wait_start = None
@@ -81,7 +81,6 @@ class ItemCollect(Node):
         self.target_published = False
 
         self.get_logger().info('Item collect node started.')
-
     def odom_callback(self, msg):
         self.pose = msg.pose.pose
         self.yaw = get_yaw(self.pose.orientation)
@@ -108,7 +107,7 @@ class ItemCollect(Node):
             return
 
     def item_detected_callback(self, msg):
-        if (not self.currently_collecting) and (msg.x >=1.0) and (msg.y >= 0.6) and self.start:
+        if (not self.currently_collecting) and (msg.x >=1.0) and (msg.y >= 0.5) and self.start:
             self.start = True
             self.currently_collecting = True
             self.object_num = int(msg.x)
@@ -116,7 +115,7 @@ class ItemCollect(Node):
             self.collecting_pub.publish(Bool(data=True)) 
             self.get_logger().info('Item detected! Taking over robot control.')
             
-        elif self.currently_collecting and (msg.x ==self.object_num) and (msg.y >= 0.6) and self.start:
+        elif self.currently_collecting and (msg.x ==self.object_num) and (msg.y >= 0.5) and self.start:
             self.object_center_error = (msg.z)
 
     def control_loop(self):
@@ -130,26 +129,31 @@ class ItemCollect(Node):
             return
 
         if self.state == 0:
+            self.get_logger().info(f'State 0: Saving initial pose (X: {self.pose.position.x:.2f}, Y: {self.pose.position.y:.2f})')
             self.save_pose = self.pose
             self.save_yaw = self.yaw
             self.state = 1
 
         elif self.state == 1:
-            if abs(self.object_center_error) > 0.05:
+            if abs(self.object_center_error) > 0.06:
+                self.get_logger().info(f'State 1: Aligning with item. Current error: {self.object_center_error:.3f}')
                 cmd = Twist()
-                cmd.linear.y = -0.08 * (1 if self.object_center_error > 0 else -1)
+                cmd.angular.z = (-0.1*self.object_center_error)
                 self.cmd_pub.publish(cmd)
             else:
+                self.get_logger().info('State 1: Alignment complete. Transitioning to forward approach.')
                 self.cmd_pub.publish(Twist())
                 self.state = 2
 
         elif self.state == 2:
             # Move forward until ToF reads exactly 0
-            if self.ToF_range > 0.0:
+            if self.ToF_range > 15.0:
+                self.get_logger().info(f'State 2: Moving forward towards item. Current ToF range: {self.ToF_range:.2f}')
                 cmd = Twist()
                 cmd.linear.x = self.linear_speed
                 self.cmd_pub.publish(cmd)
             else:
+                self.get_logger().info('State 2: ToF range reached 0.0. Stopping forward movement.')
                 self.cmd_pub.publish(Twist()) # Stop moving forward
                 self.state = 3
                 self.target_published = False
@@ -159,8 +163,8 @@ class ItemCollect(Node):
             # Publish a target 30 cm backward using the PID controller
             if not self.target_published:
                 backup_target = Pose2D()
-                backup_target.x = self.pose.position.x - 0.25 * math.cos(self.yaw)
-                backup_target.y = self.pose.position.y - 0.25 * math.sin(self.yaw)
+                backup_target.x = self.pose.position.x - 0.22 * math.cos(self.yaw)
+                backup_target.y = self.pose.position.y - 0.22 * math.sin(self.yaw)
                 backup_target.theta = self.yaw
                 
                 self.target_pub.publish(backup_target)

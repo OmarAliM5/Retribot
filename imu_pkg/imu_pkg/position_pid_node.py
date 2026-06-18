@@ -64,6 +64,10 @@ class PositionPIDNode(Node):
         # Subscription to know when an obstacle avoidance sequence is running
         self.obs_avoid_sub = self.create_subscription(Bool, '/obstacle_avoidance', self.obs_avoid_callback, 10)
         
+        self.collecting_sub = self.create_subscription(Bool, '/collecting_item', self.collecting_callback, 10)
+        self.is_collecting = False
+
+
         self.last_gui_command = None  # Track the last GUI command to avoid redundant processing
         self.timer = self.create_timer(0.05, self.control_loop)
 
@@ -108,6 +112,17 @@ class PositionPIDNode(Node):
         qz = msg.pose.pose.orientation.z
         qw = msg.pose.pose.orientation.w
         self.yaw = math.atan2(2.0 * qw * qz, 1.0 - 2.0 * qz * qz)
+    def collecting_callback(self, msg):
+        # If transitioning from not collecting to collecting
+        if msg.data == True and not self.is_collecting:
+            self.get_logger().info("Item collection taking over. Canceling current path target.")
+            self.stop_robot()
+            self.has_target = False  # This stops the PID control loop from driving forward
+            
+            self.is_reached = False
+
+        self.is_collecting = msg.data
+        
 
     def target_callback(self, msg):
         self.target_x = msg.x

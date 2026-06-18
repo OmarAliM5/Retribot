@@ -204,7 +204,7 @@ class ItemCollect(Node):
                 return
 
             # Normal alignment logic
-            if (abs(self.object_center_error) > 0.05) or (self.ToF_range > 15.0):
+            if (abs(self.object_center_error) > 0.06) or (self.ToF_range > 15.0):
                 self.get_logger().info(f'State 1: Aligning with item. Current error: {self.object_center_error:.3f}')
                 cmd = Twist()
                 cmd.angular.z = (-0.15 * self.object_center_error) - 0.01 * (1 if self.object_center_error > 0 else -1)

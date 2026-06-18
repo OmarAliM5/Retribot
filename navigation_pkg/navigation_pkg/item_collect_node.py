@@ -58,6 +58,14 @@ class ItemCollect(Node):
             self.status_callback, 
             10
         )
+        self.obs_avoid_sub = self.create_subscription(
+            Bool,
+            '/obstacle_avoidance',
+            self.obs_avoid_callback,
+            10
+        )
+        
+        self.is_avoiding_obstacle = False
 
         self.timer = self.create_timer(0.1, self.control_loop)
 
@@ -80,7 +88,16 @@ class ItemCollect(Node):
         self.goal_reached = False
         self.target_published = False
 
+        self.detection_count = 0
+        self.last_detection_time = 0.0
+        self.detection_timeout = 1.0  # Seconds before resetting consecutive count
+        self.alignment_timeout = 4.0  # Seconds to wait in State 1 before giving up
+
         self.get_logger().info('Item collect node started.')
+
+    def obs_avoid_callback(self, msg):
+        self.is_avoiding_obstacle = msg.data
+
     def odom_callback(self, msg):
         self.pose = msg.pose.pose
         self.yaw = get_yaw(self.pose.orientation)
@@ -107,16 +124,42 @@ class ItemCollect(Node):
             return
 
     def item_detected_callback(self, msg):
-        if (not self.currently_collecting) and ((msg.x ==1.0) and (msg.y >= 0.7) or (msg.x >=2.0) and (msg.y >= 0.5)) and self.start:
-            self.start = True
-            self.currently_collecting = True
-            self.object_num = int(msg.x)
-            self.object_center_error = (msg.z)
-            self.collecting_pub.publish(Bool(data=True)) 
-            self.get_logger().info('Item detected! Taking over robot control.')
+        current_time = time.time()
+        
+        # Check if the incoming message meets your criteria for a valid item
+        is_valid_target = ((msg.x == 1.0) and (msg.y >= 0.7)) or ((msg.x >= 2.0) and (msg.y >= 0.5))
+
+        if (not self.currently_collecting) and self.start:
             
-        elif self.currently_collecting and (msg.x ==self.object_num) and (msg.y >= 0.5) and self.start:
-            self.object_center_error = (msg.z)
+            # --- NEW: Block item collection if avoiding an obstacle ---
+            if self.is_avoiding_obstacle:
+                self.detection_count = 0  # Reset count so it doesn't stack up secretly
+                return
+            # ----------------------------------------------------------
+
+            # If it's been too long since the last detection, reset the counter
+            if (current_time - self.last_detection_time) > self.detection_timeout:
+                self.detection_count = 0
+
+            if is_valid_target:
+                self.detection_count += 1
+                self.last_detection_time = current_time
+                
+                if self.detection_count >= 3:
+                    self.currently_collecting = True
+                    self.object_num = int(msg.x)
+                    self.object_center_error = msg.z
+                    self.collecting_pub.publish(Bool(data=True)) 
+                    self.get_logger().info('Item detected 3 consecutive times! Taking over robot control.')
+                    self.detection_count = 0  # Reset for the next time
+            else:
+                self.detection_count = 0  # Reset if an invalid detection interrupts the sequence
+                
+        elif self.currently_collecting and self.start:
+            # Update error and timestamp if it is the object we are currently tracking
+            if (msg.x == self.object_num) and (msg.y >= 0.5):
+                self.object_center_error = msg.z
+                self.last_detection_time = current_time  # Keep updating to prevent alignment timeout
 
     def control_loop(self):
         if self.wait_start is None:
@@ -135,10 +178,23 @@ class ItemCollect(Node):
             self.state = 1
 
         elif self.state == 1:
-            if abs(self.object_center_error) > 0.06:
+            # --- NEW TIMEOUT CHECK ---
+            if (time.time() - self.last_detection_time) > self.alignment_timeout:
+                self.get_logger().warn('Target lost during alignment! Aborting and returning to path.')
+                self.cmd_pub.publish(Twist())  # Stop motor movement
+                self.state = 0
+                self.currently_collecting = False
+                self.object_num = 0
+                self.collecting_pub.publish(Bool(data=False))  # Release control back to path follower
+                return
+
+            # Normal alignment logic
+            if (abs(self.object_center_error) > 0.05) or (self.ToF_range > 15.0):
                 self.get_logger().info(f'State 1: Aligning with item. Current error: {self.object_center_error:.3f}')
                 cmd = Twist()
-                cmd.angular.z = (-0.15*self.object_center_error) - 0.006*(1 if self.object_center_error>0 else -1 )
+                cmd.angular.z = (-0.15 * self.object_center_error) - 0.01 * (1 if self.object_center_error > 0 else -1)
+                if self.ToF_range > 15.0:
+                    cmd.linear.x = self.linear_speed
                 self.cmd_pub.publish(cmd)
             else:
                 self.get_logger().info('State 1: Alignment complete. Transitioning to forward approach.')
@@ -146,14 +202,14 @@ class ItemCollect(Node):
                 self.state = 2
 
         elif self.state == 2:
-            # Move forward until ToF reads exactly 0
-            if self.ToF_range > 15.0:
+            # Move forward until ToF reads near 0
+            if self.ToF_range > 0.0:
                 self.get_logger().info(f'State 2: Moving forward towards item. Current ToF range: {self.ToF_range:.2f}')
                 cmd = Twist()
-                cmd.linear.x = self.linear_speed
+                cmd.linear.x = self.linear_speed*0.6
                 self.cmd_pub.publish(cmd)
             else:
-                self.get_logger().info('State 2: ToF range reached 0.0. Stopping forward movement.')
+                self.get_logger().info('State 2: ToF range reached near 0 Stopping forward movement.')
                 self.cmd_pub.publish(Twist()) # Stop moving forward
                 self.state = 3
                 self.target_published = False

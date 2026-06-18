@@ -119,8 +119,23 @@ class ItemCollect(Node):
 
         if command == 'stop' or command == 'manual':
             self.start = False
+            
+            # 1. Reset all internal sequence states
+            self.state = 0
+            self.currently_collecting = False
+            self.object_num = 0
+            self.object_center_error = 0.0
+            self.detection_count = 0
+            self.goal_reached = False
+            self.target_published = False
+            
+            # 2. Command servos to the stowed/safe position (equivalent to State 8)
+            self.arm_angle_pub.publish(UInt8(data=20))
+            self.gripper_angle_pub.publish(UInt8(data=60))
+            
+            # 3. Release control back to the system/manual mode
             self.collecting_pub.publish(Bool(data=False))
-            self.get_logger().info('Item collect stopped.')
+            self.get_logger().info('Item collect disabled. Sequence reset and arm stowed.')
             return
 
     def item_detected_callback(self, msg):

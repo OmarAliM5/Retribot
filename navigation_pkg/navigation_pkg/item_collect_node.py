@@ -107,7 +107,7 @@ class ItemCollect(Node):
             return
 
     def item_detected_callback(self, msg):
-        if (not self.currently_collecting) and (msg.x >=1.0) and (msg.y >= 0.5) and self.start:
+        if (not self.currently_collecting) and ((msg.x ==1.0) and (msg.y >= 0.7) or (msg.x >=2.0) and (msg.y >= 0.5)) and self.start:
             self.start = True
             self.currently_collecting = True
             self.object_num = int(msg.x)
@@ -138,7 +138,7 @@ class ItemCollect(Node):
             if abs(self.object_center_error) > 0.06:
                 self.get_logger().info(f'State 1: Aligning with item. Current error: {self.object_center_error:.3f}')
                 cmd = Twist()
-                cmd.angular.z = (-0.15*self.object_center_error) - 0.05*(1 if self.object_center_error>0 else -1 )
+                cmd.angular.z = (-0.15*self.object_center_error) - 0.006*(1 if self.object_center_error>0 else -1 )
                 self.cmd_pub.publish(cmd)
             else:
                 self.get_logger().info('State 1: Alignment complete. Transitioning to forward approach.')

@@ -138,9 +138,9 @@ class CameraDetectorNode(Node):
                 pic.data = f"{best_name},{best_conf:.2f}"
 
                 if best_name == "Green_AirPods":
-                    msg.x = 1.0  
+                    msg.x = 2.0  
                 elif best_name == "Tennis_Ball":
-                    msg.x = 2.0
+                    msg.x = 1.0
                 elif best_name == "White_AirPods":
                     msg.x = 3.0
                 else:

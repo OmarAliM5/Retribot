@@ -7,6 +7,7 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose2D
 from std_msgs.msg import String, Bool
 import math
+# import time
 
 def get_yaw(q):
     siny_cosp = 2 * (q.w * q.z + q.x * q.y)
@@ -50,6 +51,7 @@ class MotionSequence(Node):
         self.save_y = 0.0
         self.save_yaw = 0.0
 
+        # self.last_publish_time = 0.0
         # Generate the Mirrored Lawnmower Path Pattern
         self.rel_targets = self.generate_path()
 
@@ -86,6 +88,8 @@ class MotionSequence(Node):
         self.obstacle_avoidance = msg.data
         
     def collecting_callback(self, msg):
+        if self.is_collecting == True and msg.data == False:
+            self.state = self.save_state
         self.is_collecting = msg.data
 
     def start_stop_callback(self, msg):

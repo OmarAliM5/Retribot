@@ -86,6 +86,21 @@ The robot software follows a modular ROS2 architecture where each package is res
 
 ---
 
+## 🔌 ESP32-S3 Firmware
+
+The embedded firmware responsible for low-level robot control is maintained in a separate repository.
+
+The firmware handles:
+
+* Motor driver control
+* Encoder processing
+* PID-based wheel control
+* IMU communication
+* Sensor interfacing
+* Serial communication with the ROS2 host
+
+**Repository:** https://github.com/Notsuperman7/Mobile_robot
+
 ## 🚀 Main Capabilities
 
 * Real-time camera streaming
